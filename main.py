@@ -63,7 +63,7 @@ def main():
     root.geometry("400x300")
     root.minsize(400, 300)
     root.title("AZ-scan - Escáner de Archivos")
-    root.iconbitmap("logo.ico")
+    root.iconbitmap("assets/images/logo32.ico")
     root.bind("<Escape>", lambda event: root.quit())
 
     # # Set a global default font
