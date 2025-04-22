@@ -8,7 +8,7 @@ prefixes:
   - code: 02_P-PPA
     last_index:
   - code: 03_P-POP
-    last_index: 56
+    last_index:
   - code: 04_P-CFF
     last_index:
   - code: 04_P-COA1
@@ -19,6 +19,6 @@ prefixes:
     last_index:
   - code: 04_P-POV
     last_index:
-last_prefix: 03_P-POPa
-last_directory:
+last_prefix: 01_P-PO2
+last_directory: C:\Users\fhnaz\Documents\Escaneos\Postales
 last_scan:

@@ -40,7 +40,7 @@ class Console:
 
         command_values = {
             "driver": 'twain', # sane, twain
-            "device": 'twain', # CanoScan LiDE 300, TWAIN2 FreeImage Software Scanner
+            "device": 'canoscan', # CanoScan LiDE 300, TWAIN2 FreeImage Software Scanner
             "dpi": '600'
         }
         command = [
