@@ -6,8 +6,7 @@ class AppState:
         self.config = Config.load()
 
         self.scan_folder = Path(self.config.get("last_folder", Path.home()))
-        self.next_filename = 1
-        self.prev_filename = 1
+        # self.last_scan = 1
 
         self.prefix_dict = {
             prefix["code"]: prefix.get("last_index", 1)
@@ -25,7 +24,7 @@ class AppState:
 
     def get_last_index(self, prefix: str = None) -> int:
         prefix = prefix or self.get_last_prefix()
-        return self.prefix_dict.get(prefix, 1)
+        return self.prefix_dict.get(prefix) or 1
 
     def set_last_index(self, prefix: str, index: int):
         self.prefix_dict[prefix] = index
@@ -54,3 +53,4 @@ class AppState:
 
     def get_prefix_list(self) -> list:
         return self.prefix_list
+

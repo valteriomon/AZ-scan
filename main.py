@@ -1,3 +1,4 @@
+from core.constants import APP_TITLE
 from core.postcard_view import PostcardView
 from core.map_view import MapView
 import tkinter as tk
@@ -23,7 +24,8 @@ def main_menu(root):
     ttk.Label(frame, text="Escanear...", font=BIG_FONT).pack(pady=20)
 
     # Map button
-    map_button = ttk.Button(frame, text="Mapa", width=30, command=lambda: launch_app(root, MapView))
+    map_button = ttk.Button(frame, text="Mapa (próximamente)", width=30, command=lambda: launch_app(root, MapView))
+    map_button.state(["disabled"])
     map_button.pack(pady=10, ipadx=10, ipady=10)
     map_button.configure(style="Big.TButton")
     map_button['underline'] = 0  # Underline 'M'
@@ -62,7 +64,7 @@ def main():
     root = tk.Tk()
     root.geometry("400x300")
     root.minsize(400, 300)
-    root.title("AZ-scan - Escáner de Archivos")
+    root.title(APP_TITLE)
     root.iconbitmap("assets/images/logo32.ico")
     root.bind("<Escape>", lambda event: root.quit())
 

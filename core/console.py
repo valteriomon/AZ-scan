@@ -1,4 +1,6 @@
+from .custom_error import FileAlreadyExistsError
 import subprocess
+from pathlib import Path
 
 class Console:
 
@@ -20,7 +22,7 @@ class Console:
         print(f"Running command: {command_str}")
 
         try:
-            result = subprocess.run(command, capture_output=True, check=True, text=True, **kwargs)
+            result = subprocess.run(command, capture_output=False, check=True, text=True, **kwargs)
             print("Command completed successfully.")
             return result
         except subprocess.CalledProcessError as e:
@@ -30,10 +32,11 @@ class Console:
 
     # Naps2 CLI
     # https://www.naps2.com/doc/command-line
-    def scan(self, path, filename):
+    def scan(self, output_filepath) -> bool:
+        if Path(output_filepath).is_file():
+            raise FileAlreadyExistsError(f"File already exists: {output_filepath}")
+
         naps2_path = r"C:\Program Files\NAPS2\NAPS2.Console.exe"
-        output_extension = "png"
-        output_file = f"{path}/{filename}.{output_extension}"
 
         command_values = {
             "driver": 'twain', # sane, twain
@@ -42,13 +45,14 @@ class Console:
         }
         command = [
             naps2_path,
-            '--output', output_file,
-            '--noprofile'
+            '--output', output_filepath,
+            '--noprofile',
             '--driver', command_values["driver"],
             '--device', command_values["device"],
             '--dpi', command_values["dpi"],
         ]
         self.run(command)
+        return True
 
     # Fred's ImageMagick multicrop through WSL
     # http://www.fmwconcepts.com/imagemagick/multicrop/index.php

@@ -1,4 +1,7 @@
+from .constants import APP_TITLE, SCAN_FILETYPE
 from .app_state import AppState
+from core.console import Console
+from core.custom_error import FileAlreadyExistsError
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
@@ -7,19 +10,19 @@ from tkinter import font
 
 class PostcardView:
     def __init__(self, root):
-        state = AppState()
+        self.state = AppState()
 
         self.root = root
-        root.title("AZ-scan - Escáner de Archivos - Postales")
+        root.title(f"{APP_TITLE} - Postales")
         root.configure(padx=15, pady=15)
 
-        self.prefix_list = state.get_prefix_list()
-        self.prefix = tk.StringVar(value=state.get_last_prefix())
-        self.index = tk.StringVar(value=state.get_last_index())
+        self.prefix_list = self.state.get_prefix_list()
+        self.prefix = tk.StringVar(value=self.state.get_last_prefix())
+        self.index = tk.StringVar(value=self.state.get_last_index())
         self.side = tk.StringVar(value="A")
-        self.prev_file = tk.StringVar(value=state.get_last_scan())
+        self.prev_file = tk.StringVar(value=self.state.get_last_scan())
         self.next_file = tk.StringVar()
-        self.scan_folder = tk.StringVar(value=state.get_last_folder())
+        self.scan_folder = tk.StringVar(value=self.state.get_last_folder())
 
         # #################
         # UI
@@ -52,11 +55,11 @@ class PostcardView:
 
         # Radio Buttons
         ttk.Label(row_2, text="Lado:").grid(row=0, column=8, padx=5, pady=5)
-        ttk.Radiobutton(row_2, text="A", variable=self.side, value="A", command=self.update_state).grid(row=0, column=9, padx=5, pady=5)
-        ttk.Radiobutton(row_2, text="B", variable=self.side, value="B", command=self.update_state).grid(row=0, column=10, padx=5, pady=5)
+        ttk.Radiobutton(row_2, text="A", variable=self.side, value="A").grid(row=0, column=9, padx=5, pady=5)
+        ttk.Radiobutton(row_2, text="B", variable=self.side, value="B").grid(row=0, column=10, padx=5, pady=5)
 
         # Scan Button
-        self.scan_button = ttk.Button(row_2, text="Escanear", command=self.scan_action)
+        self.scan_button = ttk.Button(row_2, text="Escanear", command=self.scan)
         self.scan_button.grid(row=0, column=11, columnspan=2, pady=5)
 
         # Row 3 to 4
@@ -72,16 +75,18 @@ class PostcardView:
         ttk.Label(row_3_to_4, textvariable=self.next_file, anchor="w").grid(row=1, column=1, padx=5, pady=5, sticky="w")
 
         # Triggers updates
-        self.prefix.trace_add("write", lambda *_: self.update_state())
-        self.index.trace_add("write", lambda *_: self.update_state())
-        self.side.trace_add("write", lambda *_: self.update_state())
+        self.bind_var(self.prefix, self.update_next_file)
+        self.bind_var(self.index, self.update_next_file)
+        self.bind_var(self.side, self.update_next_file)
+        self.bind_var(self.scan_folder, self.update_next_file)
 
-        # #################
+        # Get last index if prefix changes
+        self.prefix.trace_add("write", lambda *_: self.index.set(self.state.get_last_index(self.prefix.get())))
 
         # Shortcuts
         root.bind("<Control-s>", lambda event: self.scan())
 
-        self.update_state()
+        self.update_next_file()
 
         # Lock window size to content
         root.update_idletasks()
@@ -104,11 +109,58 @@ class PostcardView:
             self.index.set(int(index) + 1)
 
     def update_state(self):
-        text = rf"{self.scan_folder.get()}\{self.prefix.get()}_{self.index.get()}_{self.side.get()}.png"
+        pass
+
+    def update_next_file(self):
+        text = rf"{self.scan_folder.get()}\{self.prefix.get()}_{self.index.get()}_{self.side.get()}.{SCAN_FILETYPE}"
         self.next_file.set(text)
 
-    def scan_action(self):
-        pass
-
     def scan(self):
-        pass
+        next_file = self.next_file.get()
+        try:
+            Console().scan(next_file)
+        except FileAlreadyExistsError as e:
+            messagebox.showerror(
+                "Error",
+                f"El siguiente archivo que se intenta crear ya existe:\n\n{next_file}\n\n"
+                "Eliminar el archivo o actualizar el nombre del próximo escaneo."
+            )
+            print("Error:", e)
+            return False
+        self.state.save()
+        self.update_filenames()
+        return True
+
+    def update_filenames(self):
+        self.prev_file.set(self.next_file.get())
+        if self.side.get() == "A":
+            self.side.set("B")
+        else:
+            self.increase_index()
+            self.side.set("A")
+
+    def bind_var(self, var, callback):
+        var.trace_add("write", lambda *_: callback())
+
+
+    # if new_prefix not in self.prefixes:
+    #     self.prefixes.append(new_prefix)
+
+
+#     value = self.text_input_var.get().strip()
+#     if value and value not in self.dropdown_values:
+#         dropdown_values.append(value)
+#         save_dropdown_option(value)
+
+#         # Update dropdown menu with new value
+#         menu = self.dropdown["menu"]
+#         menu.add_command(label=value, command=lambda v=value: self.dropdown_var.set(v))
+#     print(f"Scan triggered with value: {value}")
+#     self.scan_button.config(text="Scanning...")
+
+# def save_dropdown_option(new_option):
+#     options = load_dropdown_options()
+#     if new_option not in options:
+#         options.append(new_option)
+#         with open(YAML_FILE, "w") as f:
+#             yaml.dump({"dropdown_options": options}, f)
