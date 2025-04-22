@@ -1,6 +1,7 @@
 - Maps view
     - Zig zag scan with preview + filename according to matrix
 - Postcard view
+    - Add "repeat/remake last scan" button  
     - Make font bigger
     - Delete last scan option
     - Enable scan button only if new and last scan are named differently (check last scan exists).
@@ -18,4 +19,4 @@
     - Check sorting/tabs.
     - Optional: Add to original database
 - Subdivide when possible in less than 500 items per code
-- Check permissions so syn
+- Check permissions so sync doesn't remove files
