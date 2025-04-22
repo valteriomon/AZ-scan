@@ -18,3 +18,4 @@
     - Check sorting/tabs.
     - Optional: Add to original database
 - Subdivide when possible in less than 500 items per code
+- Check permissions so syn

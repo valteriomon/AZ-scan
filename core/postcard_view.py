@@ -127,7 +127,7 @@ class PostcardView:
             )
             print("Error:", e)
             return False
-        self.state.save()
+        # self.state.save()
         self.update_filenames()
         return True
 
