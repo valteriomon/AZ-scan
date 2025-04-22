@@ -20,3 +20,12 @@
     - Optional: Add to original database
 - Subdivide when possible in less than 500 items per code
 - Check permissions so sync doesn't remove files
+
+
+---
+last_directory not working
+update+patch
+enable next scan after current finishes
+"Not respoinding" fix
+boton siguiente
+autocrop como parte separada del programa
