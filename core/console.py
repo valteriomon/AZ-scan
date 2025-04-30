@@ -1,5 +1,6 @@
 from .custom_error import FileAlreadyExistsError
 import subprocess
+
 from pathlib import Path
 
 class Console:
@@ -39,8 +40,8 @@ class Console:
         naps2_path = r"C:\Program Files\NAPS2\NAPS2.Console.exe"
 
         command_values = {
-            "driver": 'twain', # sane, twain
-            "device": 'canoscan', # CanoScan LiDE 300, TWAIN2 FreeImage Software Scanner
+            "driver": 'wia', # sane, twain
+            "device": 'lide', # CanoScan LiDE 300, TWAIN2 FreeImage Software Scanner
             "dpi": '600'
         }
         command = [
@@ -50,6 +51,7 @@ class Console:
             '--driver', command_values["driver"],
             '--device', command_values["device"],
             '--dpi', command_values["dpi"],
+            '--force'
         ]
         self.run(command)
         return True

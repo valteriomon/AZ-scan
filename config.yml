@@ -1,24 +1,28 @@
 prefixes:
-  - code: TBD
-    last_index:
-  - code: 01_P-PO1
-    last_index:
-  - code: 01_P-PO2
-    last_index:
-  - code: 02_P-PPA
-    last_index:
-  - code: 03_P-POP
-    last_index:
-  - code: 04_P-CFF
-    last_index:
-  - code: 04_P-COA1
-    last_index:
-  - code: 04_P-COA2
-    last_index:
-  - code: 04_P-MBZ
-    last_index:
-  - code: 04_P-POV
-    last_index:
-last_prefix: 01_P-PO2
-last_directory: C:\Users\fhnaz\Documents\Escaneos\Postales
+- code: TBD
+  last_index: 3
+- code: 01_P-PO
+  last_index: 3
+- code: 02_P-PPA
+  last_index: 1
+- code: 03_P-POP
+  last_index: 4
+- code: 04_P-CFF
+  last_index: 1
+- code: 04_P-COA1
+  last_index: null
+- code: 04_P-COA2
+  last_index: null
+- code: 04_P-MBZ
+  last_index: 11
+- code: 04_P-POV
+  last_index: null
 last_scan:
+  prefix: 01_P-PO
+  directory: D:\Books\Mangas
+  filename: null
+scanner:
+  driver: wia
+  device: lide
+  dpi: 600
+  filetype: png

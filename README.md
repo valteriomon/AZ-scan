@@ -1,10 +1,17 @@
 - Maps view
     - Zig zag scan with preview + filename according to matrix
 - Postcard view
-    - Add "repeat/remake last scan" button  
+    - Add "repeat/remake last scan" button
+    - "Next" button?
+        - Scan + Next instead of auto-update
+            - Ask to delete previous scan
     - Make font bigger
     - Delete last scan option
     - Enable scan button only if new and last scan are named differently (check last scan exists).
+    - Enable scan button only after previous task finishes.
+    - Add "Scanning…" label while scans.
+    - Bold on filenames.
+    - Check "Not respoding" window during scan.
     - Split saves into folders depending prefix
     - Preview scan
         - Crop
@@ -12,6 +19,8 @@
         - Rotate by 90
         - Slight rotate
     - Refresh dropdown with saved prefix
+    - Modular autocrop (separate window? crop while scanning)
+    - Update + patch ?
 - Set scan folder to the Drive sync folder
 - Google AppsScript
     - Automove according to prefix (removing original as to free space in device)
@@ -20,12 +29,3 @@
     - Optional: Add to original database
 - Subdivide when possible in less than 500 items per code
 - Check permissions so sync doesn't remove files
-
-
----
-last_directory not working
-update+patch
-enable next scan after current finishes
-"Not respoinding" fix
-boton siguiente
-autocrop como parte separada del programa
