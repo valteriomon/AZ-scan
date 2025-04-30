@@ -112,6 +112,7 @@ class PostcardView:
 
         self.status_label = tk.Label(row_99, text="", anchor="w", bg="#dfe6e9", fg="#2d3436")
         self.status_label.pack(fill="x", padx=5, pady=2)
+        self.status_label.config(text="Listo para escanear.")
 
     def choose_folder(self):
         folder = filedialog.askdirectory()
@@ -160,7 +161,7 @@ class PostcardView:
 
             self.root.after(0, self.update_ui)
             self.root.after(0, lambda: self.scan_button.config(state="normal"))
-            self.root.after(0, lambda: self.status_label.config(text=""))
+            self.root.after(0, lambda: self.status_label.config(text="Escaneo finalizado. Listo para escanear."))
 
         threading.Thread(target=do_scan, daemon=True).start()
 
