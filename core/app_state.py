@@ -7,9 +7,10 @@ from .constants import FILE_PATH, DEFAULT_STATE
 class AppState:
     def __init__(self):
         self.load_config()
+        self._side = "A" # Side not saved into config, assumed A
 
+    # Config methods
     def load_config(self):
-        """Load state from a YAML file and override defaults."""
         if os.path.exists(FILE_PATH):
             with open(FILE_PATH, "r", encoding="utf-8") as f:
                 yaml_data = yaml.safe_load(f) or {}
@@ -20,7 +21,6 @@ class AppState:
         self._original_state = copy.deepcopy(self._state)
 
     def save_config(self):
-        """Save current state to the YAML file."""
         with open(FILE_PATH, "w", encoding="utf-8") as f:
             yaml.safe_dump(self._state, f, sort_keys=False)
             self._original_state = copy.deepcopy(self._state)
@@ -35,7 +35,6 @@ class AppState:
                     merged[k] = v
             return merged
         elif isinstance(default, list) and all(isinstance(i, dict) for i in default):
-            # Override based on matching 'code' key if present
             if all("code" in item for item in default):
                 merged = {item["code"]: item.copy() for item in default}
                 for item in override:
@@ -50,6 +49,85 @@ class AppState:
         else:
             return override
 
+    # Getters and setters
+    @property
+    def prefix(self):
+        prefix = self._state.get("last_scan", {}).get("prefix")
+        if prefix:
+            return prefix
+        prefix_list = self.get_prefix_list()
+        return prefix_list[0] if prefix_list else ""
+
+    @prefix.setter
+    def prefix(self, value: str):
+        self._state["last_scan"]["prefix"] = value
+        updated_prefixes = list(self._original_state.get("prefixes", []))
+        if not self.code_exists(updated_prefixes, value):
+            updated_prefixes.append({"code": value, "last_index": self.index})
+        else:
+            for entry in updated_prefixes:
+                if entry["code"] == value:
+                    entry["last_index"] = self.index
+        self._state["prefixes"] = self.sort_prefixes(updated_prefixes)
+        self._state["last_scan"]["filename"] = self.filename
+
+    @property
+    def index(self):
+        return self.get_prefix_dict().get(self.prefix) or 1
+
+    @index.setter
+    def index(self, value):
+        for prefix in self._state["prefixes"]:
+            if prefix["code"] == self.prefix:
+                prefix["last_index"] = value
+                break
+        self._state["last_scan"]["filename"] = self.filename
+
+    @property
+    def side(self):
+        return self._side
+
+    @side.setter
+    def side(self, value):
+        self._side = value
+        self._state["last_scan"]["filename"] = self.filename
+
+    @property
+    def last_filepath(self) -> str:
+        last_folder = self._original_state.get("last_scan", {}).get("folder")
+        last_filename = self._original_state.get("last_scan", {}).get("filename")
+        if last_folder and last_filename:
+            return f"{os.path.join(last_folder, last_filename)}.{self.filetype}"
+        return "No encontrado."
+
+    @property
+    def next_filepath(self) -> str:
+        if self.folder and self.filename:
+            return f"{os.path.join(self.folder, self.filename)}.{self.filetype}"
+        return "No encontrado."
+
+    @property
+    def filename(self) -> str:
+        return f"{self.prefix}_{self.index}_{self.side}"
+
+    @property
+    def folder(self) -> Path:
+        folder = self._state.get("last_scan", {}).get("folder")
+        return Path(folder) if folder else Path.home()
+
+    @folder.setter
+    def folder(self, folder: Path):
+        self._state["last_scan"]["folder"] = str(folder)
+
+    @property
+    def filetype(self) -> str:
+        return self._state.get("scanner", {}).get("filetype", "png")
+
+    @property
+    def next_index(self) -> int:
+        return int(self.index) + 1
+
+    # Alt methods
     def get_prefix_list(self) -> list:
         return list(self.get_prefix_dict().keys())
 
@@ -59,58 +137,13 @@ class AppState:
             for prefix in self._state.get("prefixes", [])
         }
 
-    def get_last_prefix(self) -> str:
-        prefix = self._state.get("last_scan", {}).get("prefix")
-        if prefix:
-            return prefix
-        prefix_list = self.get_prefix_list()
-        return prefix_list[0] if prefix_list else ""
-
-    def get_last_index(self, prefix: str = None) -> int:
-        prefix = prefix or self.get_last_prefix()
-        return self.get_prefix_dict().get(prefix) or 1
-
-    def get_last_filepath(self) -> str:
-        directory = self._state.get("last_scan", {}).get("directory")
-        filename = self._state.get("last_scan", {}).get("filename")
-        if directory and filename:
-            return os.path.join(directory, filename)
-        return "No encontrado."
-
-    def get_last_folder(self) -> Path:
-        return Path(self._state.get("last_scan", {}).get("directory") or Path.home())
-
-    def get_scanner(self) -> dict:
-        return self._state.get("scanner", {})
-
-    # Setters
-    def set_last_prefix(self, prefix: str, index: int = 1):
-        self._state["last_scan"]["prefix"] = prefix
-        # Work with a copy of the original prefixes
-        updated_prefixes = list(self._original_state.get("prefixes", []))
-        if not self.code_exists(updated_prefixes, prefix):
-            updated_prefixes.append({"code": prefix, "last_index": index})
-        else:
-            for entry in updated_prefixes:
-                if entry["code"] == prefix:
-                    entry["last_index"] = index
-        self._state["prefixes"] = self.sort_prefixes(updated_prefixes)
-
-    def code_exists(self, prefixes, code):
+    # Utility methods
+    @staticmethod
+    def code_exists(prefixes, code):
         return any(entry.get("code") == code for entry in prefixes)
 
-    def sort_prefixes(self, data):
+    @staticmethod
+    def sort_prefixes(data):
         first = data[0:1]
         rest = sorted(data[1:], key=lambda x: x["code"])
         return first + rest
-
-    def set_last_index(self, code, index):
-        for prefix in self._state["prefixes"]:
-            if prefix["code"] == code:
-                prefix["last_index"] = index
-                break
-
-    def set_last_folder(self, folder: Path):
-        self._state["last_scan"]["directory"] = str(folder)
-
-    # Last filename

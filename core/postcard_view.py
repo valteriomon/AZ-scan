@@ -4,6 +4,7 @@ from core.console import Console
 from core.custom_error import FileAlreadyExistsError
 from pathlib import Path
 import os
+import threading
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
@@ -16,14 +17,15 @@ class PostcardView:
         root.title(f"{APP_TITLE} - {POSTCARD_VIEW_TITLE}")
         root.configure(padx=15, pady=15)
         self.state = AppState()
+
         # Setup initial UI components
         self.build_ui(root)
 
         # Triggers updates
-        self.bind_var(self.prefix, lambda v: self.state.set_last_prefix(v, int(self.index.get())), self.update_next_file)
-        self.bind_var(self.index, lambda v: self.state.set_last_index(self.prefix.get(), int(v)), self.update_next_file)
-        self.bind_var(self.side, None, self.update_next_file)
-        self.bind_var(self.scan_folder, lambda v: self.state.set_last_folder(Path(v)), self.update_next_file)
+        self.bind_var(self.prefix, lambda v: setattr(self.state, "prefix", v), self.update_next_file)
+        self.bind_var(self.index, lambda v: setattr(self.state, "index", v), self.update_next_file)
+        self.bind_var(self.side, lambda v: setattr(self.state, "side", v), self.update_next_file)
+        self.bind_var(self.folder, lambda v: setattr(self.state, "folder", v), self.update_next_file)
 
         # Get last index if prefix changes
         self.prefix.trace_add("write", lambda *_: self.index.set(self.prefix_dict.get(self.prefix.get(), 1)))
@@ -39,30 +41,33 @@ class PostcardView:
         root.minsize(w, h)
 
     def get_state(self):
-        self.prefix = tk.StringVar(value=self.state.get_last_prefix())
-        self.index = tk.StringVar(value=self.state.get_last_index())
-        self.side = tk.StringVar(value="A")
+        self.prefix = tk.StringVar(value=self.state.prefix)
+        self.index = tk.StringVar(value=self.state.index)
+        self.side = tk.StringVar(value=self.state.side)
 
-        self.prev_file = tk.StringVar(value=self.state.get_last_filepath())
-        self.scan_folder = tk.StringVar(value=self.state.get_last_folder())
+        self.prev_file = tk.StringVar(value=self.state.last_filepath)
+        self.folder = tk.StringVar(value=self.state.folder)
         self.next_file = tk.StringVar()
 
         self.prefix_list = self.state.get_prefix_list()
         self.prefix_dict = self.state.get_prefix_dict()
-        self.filetype = self.state.get_scanner().get('filetype')
+        self.filetype = self.state.filetype
 
     def build_ui(self, root):
         self.get_state()
 
+        main_frame = ttk.Frame(root)
+        main_frame.pack(fill="both", expand=True)
+
         # Row 1
-        row_1 = ttk.Frame(root)
+        row_1 = ttk.Frame(main_frame)
         row_1.pack(fill="x")
         # Choose folder
         ttk.Button(row_1, text="Elegir carpeta para los escaneos", width=30, command=self.choose_folder).grid(row=0, column=0, padx=5, pady=5)
-        ttk.Label(row_1, textvariable=self.scan_folder, anchor="w").grid(row=0, column=1, columnspan=5, padx=5, pady=5, sticky="ew")
+        ttk.Label(row_1, textvariable=self.folder, anchor="w").grid(row=0, column=1, columnspan=5, padx=5, pady=5, sticky="ew")
 
         # Row 2
-        row_2 = ttk.Frame(root)
+        row_2 = ttk.Frame(main_frame)
         row_2.pack(fill="x")
 
         # Prefix dropdown + entry
@@ -89,8 +94,9 @@ class PostcardView:
         self.scan_button.grid(row=0, column=11, columnspan=2, pady=5)
 
         # Row 3 to 4
-        row_3_to_4 = ttk.Frame(root)
+        row_3_to_4 = ttk.Frame(main_frame)
         row_3_to_4.pack(fill="x")
+        row_3_to_4.columnconfigure(1, weight=1)
 
         # Previous filename
         ttk.Label(row_3_to_4, text="Último escaneo:", anchor="w").grid(row=0, column=0, padx=5, pady=5, sticky="w")
@@ -98,12 +104,19 @@ class PostcardView:
 
         # Next filename
         ttk.Label(row_3_to_4, text="Próximo escaneo:", anchor="w").grid(row=1, column=0, padx=5, pady=5, sticky="w")
-        ttk.Label(row_3_to_4, textvariable=self.next_file, anchor="w").grid(row=1, column=1, padx=5, pady=5, sticky="w")
+        ttk.Label(row_3_to_4, textvariable=self.next_file, anchor="w").grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+
+        # Row 99: Status bar pinned to bottom
+        row_99 = tk.Frame(root, bg="#dfe6e9")  # regular tk.Frame with background
+        row_99.pack(side="bottom", fill="x")
+
+        self.status_label = tk.Label(row_99, text="", anchor="w", bg="#dfe6e9", fg="#2d3436")
+        self.status_label.pack(fill="x", padx=5, pady=2)
 
     def choose_folder(self):
         folder = filedialog.askdirectory()
         if folder:
-            self.scan_folder.set(folder)
+            self.folder.set(Path(folder))
 
     def decrease_index(self):
         index = self.index.get()
@@ -120,26 +133,36 @@ class PostcardView:
         pass
 
     def update_next_file(self):
-        self.next_filename = f"{self.prefix.get()}_{self.index.get()}_{self.side.get()}"
-        self.next_file.set(os.path.join(rf"{self.scan_folder.get()}", f"{self.next_filename}.{self.filetype}"))
+        self.next_file.set(self.state.next_filepath)
 
     def scan(self):
-        next_file = self.next_file.get()
-        # try:
-        #     Console().scan(next_file)
-        # except FileAlreadyExistsError as e:
-        #     messagebox.showerror(
-        #         "Error",
-        #         f"El siguiente archivo que se intenta crear ya existe:\n\n{next_file}\n\n"
-        #         "Eliminar el archivo o actualizar el nombre del próximo escaneo."
-        #     )
-        #     print("Error:", e)
-        #     return False
-        self.state.set_last_prefix(self.prefix.get(), int(self.index.get()))
-        self.state.save_config()
-        self.update_ui()
+        self.scan_button.config(state="disabled")
+        self.status_label.config(text="Escaneando...")
 
-        return True
+        def do_scan():
+            next_file = self.next_file.get()
+            try:
+                Console().scan(next_file)
+            except FileAlreadyExistsError as e:
+                self.root.after(0, lambda: self.scan_button.config(state="normal"))
+                self.root.after(0, lambda: self.status_label.config(text=""))
+                self.root.after(0, lambda: messagebox.showerror(
+                    "Error",
+                    f"El siguiente archivo que se intenta crear ya existe:\n\n{next_file}\n\n"
+                    "Eliminar el archivo o actualizar el nombre del próximo escaneo."
+                ))
+                print("Error:", e)
+                return
+
+            self.state.prefix = self.prefix.get()
+            self.state.folder = self.folder.get()
+            self.state.save_config()
+
+            self.root.after(0, self.update_ui)
+            self.root.after(0, lambda: self.scan_button.config(state="normal"))
+            self.root.after(0, lambda: self.status_label.config(text=""))
+
+        threading.Thread(target=do_scan, daemon=True).start()
 
     def update_ui(self):
         self.update_prefix_dropdown()

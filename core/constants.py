@@ -9,7 +9,7 @@ DEFAULT_STATE = {
     ],
     "last_scan": {
         "prefix": None,
-        "directory": None,
+        "folder": None,
         "filename": None,
     },
     "scanner": {

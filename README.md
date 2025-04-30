@@ -9,7 +9,7 @@
     - Delete last scan option
     - Enable scan button only if new and last scan are named differently (check last scan exists).
     - Enable scan button only after previous task finishes.
-    - Add "Scanning…" label while scans.
+    - Add "Scanning…" label while scans. "Ready" message.
     - Bold on filenames.
     - Check "Not respoding" window during scan.
     - Split saves into folders depending prefix
