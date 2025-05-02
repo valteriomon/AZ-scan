@@ -1,13 +1,11 @@
 prefixes:
 - code: TBD
-  last_index: '6'
+  last_index: '7'
 - code: 01_P-PO
   last_index: 6
 - code: 02_P-PPA
   last_index: 7
 - code: 03_P-POP
-  last_index: 8
-- code: 03_P-POPa
   last_index: 8
 - code: 04_P-CFF
   last_index: 13
@@ -20,11 +18,13 @@ prefixes:
 - code: TBDa
   last_index: 2
 last_scan:
-  prefix:
-  folder:
-  filename:
-scanner:
-  driver: wia
-  device: lide
-  dpi: 600
-  filetype: png
+  prefix: TBD
+  folder: C:\Users\Wally
+  filename: TBD_7_A
+options:
+  scanner:
+    naps2_path: C:\Program Files\NAPS2\NAPS2.Console.exe
+    driver: wia
+    device: lide
+    dpi: 600
+    filetype: png

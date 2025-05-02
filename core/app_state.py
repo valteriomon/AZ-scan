@@ -1,55 +1,19 @@
 import os
-import yaml
 import copy
 from pathlib import Path
-from .constants import FILE_PATH, DEFAULT_STATE
+from .config import Config
+from .utils import Utils
 
 class AppState:
     def __init__(self):
-        self.load_config()
+        self._config = Config()
+        self._state = self._config.load()  # Load the current state from some config source
+        self._original_state = copy.deepcopy(self._state)  # Preserve an untouched copy
         self._side = "A" # Side not saved into config, assumed A
 
-    # Config methods
-    def load_config(self):
-        if os.path.exists(FILE_PATH):
-            with open(FILE_PATH, "r", encoding="utf-8") as f:
-                yaml_data = yaml.safe_load(f) or {}
-                self._state = self._merge_with_defaults(copy.deepcopy(DEFAULT_STATE), yaml_data)
-        else:
-            self._state = copy.deepcopy(DEFAULT_STATE)
-            self.save()
-        self._original_state = copy.deepcopy(self._state)
-
     def save_config(self):
-        with open(FILE_PATH, "w", encoding="utf-8") as f:
-            yaml.safe_dump(self._state, f, sort_keys=False)
-            self._original_state = copy.deepcopy(self._state)
+        self._original_state = self._config.save(self._state)
 
-    def _merge_with_defaults(self, default, override):
-        if isinstance(default, dict):
-            merged = default.copy()
-            for k, v in override.items():
-                if k in merged:
-                    merged[k] = self._merge_with_defaults(merged[k], v)
-                else:
-                    merged[k] = v
-            return merged
-        elif isinstance(default, list) and all(isinstance(i, dict) for i in default):
-            if all("code" in item for item in default):
-                merged = {item["code"]: item.copy() for item in default}
-                for item in override:
-                    code = item.get("code")
-                    if code in merged:
-                        merged[code].update(item)
-                    else:
-                        merged[code] = item
-                return list(merged.values())
-            else:
-                return override
-        else:
-            return override
-
-    # Getters and setters
     @property
     def prefix(self):
         prefix = self._state.get("last_scan", {}).get("prefix")
@@ -121,7 +85,7 @@ class AppState:
 
     @property
     def filetype(self) -> str:
-        return self._state.get("scanner", {}).get("filetype", "png")
+        return self._state.get("options", {}).get("scanner", {}).get("filetype", "jpg")
 
     @property
     def next_index(self) -> int:
@@ -140,7 +104,7 @@ class AppState:
     # Utility methods
     @staticmethod
     def code_exists(prefixes, code):
-        return any(entry.get("code") == code for entry in prefixes)
+        return Utils.dict_key_has_value(prefixes, "code", code)
 
     @staticmethod
     def sort_prefixes(data):

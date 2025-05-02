@@ -12,8 +12,9 @@ from tkinter import messagebox
 from tkinter import font
 
 class PostcardView:
-    def __init__(self, root):
+    def __init__(self, root, go_back_callback=None):
         self.root = root
+        self.go_back_callback = go_back_callback
         root.title(f"{APP_TITLE} - {POSTCARD_VIEW_TITLE}")
         root.configure(padx=15, pady=15)
         self.state = AppState()
@@ -64,7 +65,7 @@ class PostcardView:
         row_1.pack(fill="x")
         # Choose folder
         ttk.Button(row_1, text="Elegir carpeta para los escaneos", width=30, command=self.choose_folder).grid(row=0, column=0, padx=5, pady=5)
-        ttk.Label(row_1, textvariable=self.folder, anchor="w").grid(row=0, column=1, columnspan=5, padx=5, pady=5, sticky="ew")
+        ttk.Label(row_1, textvariable=self.folder, anchor="w").grid(row=0, column=1, columnspan=4, padx=5, pady=5, sticky="ew")
 
         # Row 2
         row_2 = ttk.Frame(main_frame)
@@ -99,19 +100,27 @@ class PostcardView:
         row_3_to_4.columnconfigure(1, weight=1)
 
         # Previous filename
-        ttk.Label(row_3_to_4, text="Último escaneo:", anchor="w").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        ttk.Label(row_3_to_4, text="Anterior:", anchor="w").grid(row=0, column=0, padx=5, pady=5, sticky="w")
         tk.Entry(row_3_to_4, textvariable=self.prev_file, state="readonly", relief="flat", borderwidth=0, highlightthickness=0).grid(row=0, column=1, padx=5, pady=5, sticky="ew")
 
         # Next filename
-        ttk.Label(row_3_to_4, text="Próximo escaneo:", anchor="w").grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        ttk.Label(row_3_to_4, text="Próximo:", anchor="w").grid(row=1, column=0, padx=5, pady=5, sticky="w")
         ttk.Label(row_3_to_4, textvariable=self.next_file, anchor="w").grid(row=1, column=1, padx=5, pady=5, sticky="ew")
 
         # Row 99: Status bar pinned to bottom
-        row_99 = tk.Frame(root, bg="#dfe6e9")  # regular tk.Frame with background
+        row_99 = tk.Frame(root, bg="#dfe6e9")
         row_99.pack(side="bottom", fill="x")
 
+        row_99.columnconfigure(0, weight=1)  # Allow status label to expand
+
         self.status_label = tk.Label(row_99, text="", anchor="w", bg="#dfe6e9", fg="#2d3436")
-        self.status_label.pack(fill="x", padx=5, pady=2)
+        self.status_label.grid(row=0, column=0, sticky="w", padx=5, pady=2)
+
+        # Create a clickable link-style label
+        menu_link = tk.Label(row_99, text="Menú", fg="blue", bg="#dfe6e9", cursor="hand2", font=("Arial", 10, "underline"))
+        menu_link.grid(row=0, column=1, sticky="e", padx=5, pady=2)
+        menu_link.bind("<Button-1>", lambda e: self.on_back())
+
         self.status_label.config(text="Listo para escanear.")
 
     def choose_folder(self):
@@ -129,9 +138,6 @@ class PostcardView:
         if index.isdigit():
             self.index.set(int(index) + 1)
             self.side.set("A")
-
-    def update_state(self):
-        pass
 
     def update_next_file(self):
         self.next_file.set(self.state.next_filepath)
@@ -194,3 +200,7 @@ class PostcardView:
             if ui_callback:
                 ui_callback()
         var.trace_add("write", wrapped_callback)
+
+    def on_back(self):
+        if self.go_back_callback:
+            self.go_back_callback()

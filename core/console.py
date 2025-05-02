@@ -1,4 +1,5 @@
 from .custom_error import FileAlreadyExistsError
+from .config import Config
 import subprocess
 
 from pathlib import Path
@@ -6,7 +7,9 @@ from pathlib import Path
 class Console:
 
     def __init__(self):
-        pass
+        self._config = Config()
+        self._state = self._config.load()
+        self._options = self._state["options"]
 
     def run(self, command, **kwargs):
         """
@@ -37,15 +40,18 @@ class Console:
         if Path(output_filepath).is_file():
             raise FileAlreadyExistsError(f"File already exists: {output_filepath}")
 
-        naps2_path = r"C:\Program Files\NAPS2\NAPS2.Console.exe"
-
         command_values = {
-            "driver": 'wia', # sane, twain
-            "device": 'lide', # CanoScan LiDE 300, TWAIN2 FreeImage Software Scanner
-            "dpi": '600'
+            "naps2_path": self._options["scanner"]["naps2_path"],
+            "driver": self._options["scanner"]["driver"],
+            "device": self._options["scanner"]["device"],
+            "dpi": self._options["scanner"]["dpi"],
         }
+
+        # Convert all values in command_values to strings
+        command_values = {key: str(value) for key, value in command_values.items()}
+
         command = [
-            naps2_path,
+            command_values["naps2_path"],
             '--output', output_filepath,
             '--noprofile',
             '--driver', command_values["driver"],

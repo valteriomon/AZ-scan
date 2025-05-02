@@ -1,4 +1,3 @@
-FILE_PATH = "config.yml"
 APP_TITLE = "AZ-scan - Escáner de Archivos"
 POSTCARD_VIEW_TITLE = "Postales"
 MAPS_VIEW_TITLE = "Postales"
@@ -12,10 +11,13 @@ DEFAULT_STATE = {
         "folder": None,
         "filename": None,
     },
-    "scanner": {
-        "driver": "wia",
-        "device": "lide",
-        "dpi": 600,
-        "filetype": "png"
+    "options": {
+        "scanner": {
+            "naps2_path": "C:\\Program Files\\NAPS2\\NAPS2.Console.exe",
+            "driver": "wia",
+            "device": "lide",
+            "dpi": 600,
+            "filetype": "png"
+        }
     }
 }

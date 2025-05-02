@@ -1,14 +1,16 @@
 prefixes:
 - code: TBD
-  last_index: '6'
+  last_index: '1'
 - code: 01_P-PO
   last_index: 6
 - code: 02_P-PPA
   last_index: 7
 - code: 03_P-POP
-  last_index: 8
+  last_index: '1'
 - code: 03_P-POPa
   last_index: 8
+- code: 03_P-POPb
+  last_index: '14'
 - code: 04_P-CFF
   last_index: 13
 - code: 04_P-COA
@@ -17,14 +19,18 @@ prefixes:
   last_index: 11
 - code: 04_P-POV
   last_index: null
+- code: TB
+  last_index: 1
 - code: TBDa
   last_index: 2
 last_scan:
-  prefix:
-  folder:
-  filename:
-scanner:
-  driver: wia
-  device: lide
-  dpi: 600
-  filetype: png
+  prefix: 03_P-POPb
+  folder: C:\Users\Wally
+  filename: 03_P-POPb_14_A
+options:
+  scanner:
+    naps2_path: C:\Program Files\NAPS2\NAPS2.Console.exe
+    driver: twain
+    device: twain
+    dpi: 600
+    filetype: png
