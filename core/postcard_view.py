@@ -1,5 +1,6 @@
 from .constants import APP_TITLE, POSTCARD_VIEW_TITLE
 from .app_state import AppState
+from .image_viewer  import ImageViewer
 from core.console import Console
 from core.custom_error import FileAlreadyExistsError
 from pathlib import Path
@@ -10,6 +11,7 @@ from tkinter import ttk
 from tkinter import filedialog
 from tkinter import messagebox
 from tkinter import font
+from PIL import Image, ImageTk
 
 class PostcardView:
     def __init__(self, root, go_back_callback=None):
@@ -90,9 +92,13 @@ class PostcardView:
         ttk.Radiobutton(row_2, text="A", variable=self.side, value="A").grid(row=0, column=9, padx=5, pady=5)
         ttk.Radiobutton(row_2, text="B", variable=self.side, value="B").grid(row=0, column=10, padx=5, pady=5)
 
+        # Save state
+        self.save_state = tk.IntVar(value=True)
+        ttk.Checkbutton(row_2, text="Recordar estado", variable=self.save_state, onvalue=True, offvalue=False).grid(row=0, column=11, padx=5, pady=5)
+
         # Scan Button
-        self.scan_button = ttk.Button(row_2, text="Escanear", command=self.scan)
-        self.scan_button.grid(row=0, column=11, columnspan=2, pady=5)
+        # self.scan_button = ttk.Button(row_2, text="Escanear", command=self.scan)
+        # self.scan_button.grid(row=0, column=11, columnspan=2, pady=5)
 
         # Row 3 to 4
         row_3_to_4 = ttk.Frame(main_frame)
@@ -106,6 +112,24 @@ class PostcardView:
         # Next filename
         ttk.Label(row_3_to_4, text="Próximo:", anchor="w").grid(row=1, column=0, padx=5, pady=5, sticky="w")
         ttk.Label(row_3_to_4, textvariable=self.next_file, anchor="w").grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+
+        # Row with image preview (Row 5)
+        row_5 = ttk.Frame(main_frame)
+        row_5.pack(fill="both", expand=True, padx=5, pady=5)
+
+        # try:
+        #     image = Image.open("test.png")
+        #     aspect_ratio = image.width / image.height
+        #     new_height = 300
+        #     new_width = int(new_height * aspect_ratio)
+        #     image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+
+        #     self.test_img = ImageTk.PhotoImage(image)
+        #     img_label = ttk.Label(row_5, image=self.test_img)
+        #     img_label.pack()
+        # except Exception as e:
+        #     error_label = ttk.Label(row_5, text=f"Error loading image: {e}", foreground="red")
+        #     error_label.pack()
 
         # Row 99: Status bar pinned to bottom
         row_99 = tk.Frame(root, bg="#dfe6e9")
@@ -164,6 +188,7 @@ class PostcardView:
             self.state.prefix = self.prefix.get()
             self.state.folder = self.folder.get()
             self.state.save_config()
+            self.show_image(next_file)
 
             self.root.after(0, self.update_ui)
             self.root.after(0, lambda: self.scan_button.config(state="normal"))
@@ -204,3 +229,38 @@ class PostcardView:
     def on_back(self):
         if self.go_back_callback:
             self.go_back_callback()
+
+
+
+    # def show_image(self, filepath):
+    #     path = filepath  # Or self.app_state.next_filepath
+    #     try:
+    #         img = Image.open(path)
+
+    #         # Resize image to fit the window
+    #         max_size = (800, 600)
+    #         img.thumbnail(max_size, Image.Resampling.LANCZOS)
+
+    #         self.tk_image = ImageTk.PhotoImage(img)
+    #         self.image_label.config(image=self.tk_image)
+    #         self.image_label.image = self.tk_image  # Prevent garbage collection
+    #     except FileNotFoundError:
+    #         self.image_label.config(text="File not found.")
+    #     except Exception as e:
+    #         self.image_label.config(text=f"Error: {e}")
+
+        # answer = self.ask_yes_no("Delete", "Do you want to delete this file?")
+        # if answer:
+        #     print("User chose Yes")
+        # else:
+        #     print("User chose No")
+
+            # @staticmethod
+    #     def show_about(event: tkinter.Event):
+    #         messagebox.showinfo("About",
+    #                             '''
+    # Py Image Editor
+    # Developed By : Pratik Aher
+    # Contact : pratik1aher@gmail.com
+    # Description : A Simple Python Gui Application Using Tkinter For Apply Different Filters on Image
+    #                             ''')

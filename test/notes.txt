@@ -1,0 +1,1318 @@
+#! /bin/sh
+# hugin command tools script to stitch two scanned images, fov unknown
+# use of fov >= 10 should be OK...could simply set FOV=10
+# Terry Duell 2013, 2014
+# Uses ptovariable, a function from perl-Panotools-Script by Bruno Postle
+# run man cmd with cmd = ptovariable and all the others below to learn how they work
+
+# usage...run_scan_ptovariable.sh outputprefix fov
+
+#get the output file prefix
+Prefix=$1
+
+# get the fov
+FOV=$2
+
+pto_gen --projection=0 --fov=$FOV -o project.pto scan-1.jpg scan-2.jpg
+pto_lensstack -o project1.pto --new-lens i1 project.pto
+cpfind -o project2.pto --multirow project1.pto
+cpclean -o project3.pto project2.pto
+linefind -o project4.pto project3.pto
+ptovariable --translations --response --exposure --roll -o setoptim.pto project4.pto
+autooptimiser -n -o autoptim.pto setoptim.pto
+pano_modify  --projection=0 --fov=AUTO --center --canvas=AUTO --crop=AUTO -o autoptim2.pto autoptim.pto
+pto2mk -o project.mk -p $Prefix autoptim2.pto
+make -j 2 -f project.mk all
+
+# open pto files from each step in hugin to check how it all worksq
+
+
+#! /bin/sh
+# hugin command tools script to stitch scanned images, fov unknown
+# use of fov >= 10 should be OK, could simply set FOV=10
+# Terry Duell 2013, 2014
+
+# usage...run-scan-pto_var.sh outputprefix fov
+
+#get the output file prefix
+Prefix=$1
+
+# get the fov
+FOV=$2
+
+pto_gen --projection=0 --fov=$FOV -o project.pto scan-1.jpg scan-2.jpg
+pto_lensstack -o project1.pto --new-lens i1 project.pto
+cpfind -o project1.pto --multirow project1.pto
+cpclean -o project2.pto project1.pto
+linefind -o project3.pto project2.pto
+pto_var -o setoptim.pto --opt r,d,e,!r0,!d0,!e0 project3.pto
+autooptimiser -n -o autoptim.pto setoptim.pto
+pano_modify  --projection=0 --fov=AUTO --center --canvas=AUTO --crop=AUTO -o autoptim2.pto autoptim.pto
+pto2mk -o project.mk -p $Prefix autoptim2.pto
+make -j 2 -f project.mk all
+
+# open pto files from each step in hugin to check how it all works
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        self.grid_frame = tk.Frame(root)
+        self.grid_frame.pack(padx=20, pady=20)
+
+        self.buttons = {}
+        self.current_row = 0
+        self.current_col = 0
+        self.direction = 'right'
+        self.max_col = None  # None means column limit isn't locked yet
+
+        self.add_button(self.current_row, self.current_col)
+
+    def add_button(self, row, col):
+        if (row, col) not in self.buttons:
+            btn = tk.Button(
+                self.grid_frame,
+                text=f"{row},{col}",
+                command=lambda r=row, c=col: self.on_button_click(r, c)
+            )
+            btn.grid(row=row, column=col, padx=5, pady=5)
+            self.buttons[(row, col)] = btn
+
+    def on_button_click(self, row, col):
+        if row != self.current_row or col != self.current_col:
+            return  # Only allow clicks on the current endpoint button
+
+        if self.max_col is None:
+            # Still building first row freely to the right
+            self.current_col += 1
+            self.add_button(self.current_row, self.current_col)
+        else:
+            if self.direction == 'right':
+                if self.current_col < self.max_col:
+                    self.current_col += 1
+                    self.add_button(self.current_row, self.current_col)
+                else:
+                    self.current_row += 1
+                    self.add_button(self.current_row, self.current_col)
+                    self.direction = 'left'
+            else:  # direction == 'left'
+                if self.current_col > 0:
+                    self.current_col -= 1
+                    self.add_button(self.current_row, self.current_col)
+                else:
+                    self.current_row += 1
+                    self.add_button(self.current_row, self.current_col)
+                    self.direction = 'right'
+
+        # If we’ve gone down for the first time, lock max_col
+        if self.max_col is None and self.current_row > 0:
+            self.max_col = self.current_col
+
+        self.canvas_size = 800
+        self.square_size = 50
+        self.offset = self.canvas_size // 2
+
+        self.canvas = tk.Canvas(root, width=self.canvas_size, height=self.canvas_size, bg='white')
+        self.canvas.pack()
+
+        self.positions = set()
+        self.min_x = self.max_x = 0
+        self.min_y = self.max_y = 0
+
+        self.draw_square(0, 0)
+        self.draw_arrows()
+
+    def grid_to_canvas(self, x, y):
+        """Convert grid coords to canvas pixel coords (top-left)."""
+        left = self.offset + x * self.square_size
+        top = self.offset + y * self.square_size
+        return left, top
+
+    def draw_square(self, x, y):
+        left, top = self.grid_to_canvas(x, y)
+        right = left + self.square_size
+        bottom = top + self.square_size
+        self.canvas.create_rectangle(left, top, right, bottom, fill='skyblue', outline='black')
+        self.positions.add((x, y))
+        self.min_x = min(self.min_x, x)
+        self.max_x = max(self.max_x, x)
+        self.min_y = min(self.min_y, y)
+        self.max_y = max(self.max_y, y)
+
+    def draw_arrows(self):
+        # Remove old arrows
+        for tag in self.canvas.find_withtag("arrow"):
+            self.canvas.delete(tag)
+
+        # Horizontal expansion arrows (top and bottom)
+        for x in range(self.min_x, self.max_x + 1):
+            if (x, self.min_y - 1) not in self.positions:
+                self.create_arrow_button("↑", x, self.min_y - 1, 0, -1)
+            if (x, self.max_y + 1) not in self.positions:
+                self.create_arrow_button("↓", x, self.max_y + 1, 0, 1)
+
+        # Vertical expansion arrows (left and right)
+        for y in range(self.min_y, self.max_y + 1):
+            if (self.min_x - 1, y) not in self.positions:
+                self.create_arrow_button("←", self.min_x - 1, y, -1, 0)
+            if (self.max_x + 1, y) not in self.positions:
+                self.create_arrow_button("→", self.max_x + 1, y, 1, 0)
+
+    def create_arrow_button(self, symbol, grid_x, grid_y, dx, dy):
+        """Create a styled arrow button at the specified grid position."""
+        bx, by = self.grid_to_canvas(grid_x, grid_y)
+        button = tk.Button(
+            self.root, text=symbol,
+            font=("Arial", 14, "bold"),
+            width=2, height=1,
+            bg="lightgray", relief="raised",
+            command=lambda: self.add_square(grid_x, grid_y)
+        )
+        self.canvas.create_window(
+            bx + self.square_size // 2,
+            by + self.square_size // 2,
+            window=button,
+            tags="arrow"
+        )
+
+    def add_square(self, x, y):
+        if (x, y) not in self.positions:
+            self.draw_square(x, y)
+            self.draw_arrows()
+
+
+
+
+        self.clicked_color = "lightblue"
+        self.default_color = "SystemButtonFace"
+        self.grid = {}  # {(row, col): button}
+        self.image_cache = {}  # Prevent garbage collection
+
+        self.image_path = os.path.join(os.path.dirname(__file__), "test.png")
+        self.button_pixel_size = (100, 100)
+
+        # History of full states
+        self.history = []
+
+        # Control panel
+        self.control_frame = tk.Frame(root)
+        self.control_frame.pack(pady=5)
+
+        self.reset_button = tk.Button(self.control_frame, text="Reset", command=self.reset_grid)
+        self.reset_button.pack(side=tk.LEFT, padx=5)
+
+        self.undo_button = tk.Button(self.control_frame, text="Undo", command=self.undo)
+        self.undo_button.pack(side=tk.LEFT, padx=5)
+
+        tk.Label(self.control_frame, text="Rows:").pack(side=tk.LEFT)
+        self.rows_entry = tk.Entry(self.control_frame, width=5)
+        self.rows_entry.pack(side=tk.LEFT, padx=2)
+
+        tk.Label(self.control_frame, text="Cols:").pack(side=tk.LEFT)
+        self.cols_entry = tk.Entry(self.control_frame, width=5)
+        self.cols_entry.pack(side=tk.LEFT, padx=2)
+
+        self.set_button = tk.Button(self.control_frame, text="Set Size", command=self.set_size)
+        self.set_button.pack(side=tk.LEFT, padx=5)
+
+        # Grid container
+        self.grid_frame = tk.Frame(root)
+        self.grid_frame.pack(pady=5)
+
+        self.min_row = self.min_col = -1
+        self.max_row = self.max_col = 1
+
+        self.render_grid()
+
+    def render_grid(self):
+        for row in range(self.min_row, self.max_row + 1):
+            for col in range(self.min_col, self.max_col + 1):
+                if (row, col) not in self.grid:
+                    btn = tk.Button(self.grid_frame,
+                                    command=lambda r=row, c=col: self.on_click(r, c))
+                    btn.config(width=self.button_pixel_size[0] // 7,
+                               height=self.button_pixel_size[1] // 15)
+                    self.grid[(row, col)] = btn
+
+        self.update_layout()
+
+    def update_layout(self):
+        for widget in self.grid_frame.winfo_children():
+            widget.grid_forget()
+
+        rows = self.max_row - self.min_row + 1
+        cols = self.max_col - self.min_col + 1
+
+        for r in range(rows):
+            self.grid_frame.rowconfigure(r, weight=1)
+        for c in range(cols):
+            self.grid_frame.columnconfigure(c, weight=1)
+
+        for (r, c), btn in self.grid.items():
+            grid_r = r - self.min_row
+            grid_c = c - self.min_col
+            btn.grid(row=grid_r, column=grid_c, padx=2, pady=2, sticky="nsew")
+
+    def on_click(self, row, col):
+        self.save_state()
+
+        btn = self.grid[(row, col)]
+        btn.config(bg=self.clicked_color)
+
+        # Load and resize image to fixed pixel size
+        if os.path.exists(self.image_path):
+            width, height = self.button_pixel_size
+            img = Image.open(self.image_path)
+            img = img.resize((width, height), Image.Resampling.LANCZOS)
+            tk_img = ImageTk.PhotoImage(img)
+            self.image_cache[(row, col)] = tk_img
+            btn.config(image=tk_img, compound="center", text="")
+
+        # Determine if expansion is needed
+        rows = list(range(self.min_row, self.max_row + 1))
+        cols = list(range(self.min_col, self.max_col + 1))
+        center_row = rows[len(rows) // 2]
+        center_col = cols[len(cols) // 2]
+
+        changed = False
+        if row == self.min_row:
+            self.min_row -= 1
+            changed = True
+        if row == self.max_row:
+            self.max_row += 1
+            changed = True
+        if col == self.min_col:
+            self.min_col -= 1
+            changed = True
+        if col == self.max_col:
+            self.max_col += 1
+            changed = True
+
+        if changed:
+            self.render_grid()
+
+    def save_state(self):
+        # Save current full state
+        state = {
+            'min_row': self.min_row,
+            'max_row': self.max_row,
+            'min_col': self.min_col,
+            'max_col': self.max_col,
+            'button_states': {},
+        }
+
+        for (row, col), btn in self.grid.items():
+            state['button_states'][(row, col)] = {
+                'bg': btn.cget('bg'),
+                'image': self.image_cache.get((row, col), None)
+            }
+
+        # Deepcopy the image cache refs
+        state['image_cache'] = dict(self.image_cache)
+        self.history.append(state)
+
+    def restore_state(self, state):
+        # Destroy all current buttons
+        for btn in self.grid.values():
+            btn.destroy()
+
+        self.grid.clear()
+        self.image_cache.clear()
+
+        self.min_row = state['min_row']
+        self.max_row = state['max_row']
+        self.min_col = state['min_col']
+        self.max_col = state['max_col']
+        self.image_cache = dict(state['image_cache'])
+
+        for (row, col), data in state['button_states'].items():
+            btn = tk.Button(self.grid_frame,
+                            command=lambda r=row, c=col: self.on_click(r, c))
+            btn.config(width=self.button_pixel_size[0] // 7,
+                       height=self.button_pixel_size[1] // 15,
+                       bg=data['bg'])
+            if data['image']:
+                btn.config(image=data['image'], compound="center", text="")
+            self.grid[(row, col)] = btn
+
+        self.update_layout()
+
+    def undo(self):
+        if not self.history:
+            return
+        last_state = self.history.pop()
+        self.restore_state(last_state)
+
+    def reset_grid(self):
+        for btn in self.grid.values():
+            btn.destroy()
+        self.grid.clear()
+        self.image_cache.clear()
+        self.history.clear()
+
+        self.min_row = self.min_col = -1
+        self.max_row = self.max_col = 1
+
+        self.render_grid()
+
+    def set_size(self):
+        try:
+            rows = int(self.rows_entry.get())
+            cols = int(self.cols_entry.get())
+            if rows < 1 or cols < 1:
+                raise ValueError
+
+            self.history.clear()
+            half_r = rows // 2
+            half_c = cols // 2
+            self.min_row = -half_r
+            self.max_row = self.min_row + rows - 1
+            self.min_col = -half_c
+            self.max_col = self.min_col + cols - 1
+
+            for btn in self.grid.values():
+                btn.destroy()
+            self.grid.clear()
+            self.image_cache.clear()
+            self.render_grid()
+        except ValueError:
+            messagebox.showerror("Invalid input", "Please enter positive integers for rows and columns.")
+
+
+
+
+
+
+
+
+
+
+
+        self.clicked_color = "lightblue"
+        self.default_color = "SystemButtonFace"
+        self.grid = {}  # {(row, col): button}
+        self.image_cache = {}  # Prevent garbage collection
+
+        self.image_path = os.path.join(os.path.dirname(__file__), "test.png")
+        self.button_pixel_size = (100, 100)
+
+        # History of full states
+        self.history = []
+
+        # Control panel
+        self.control_frame = tk.Frame(root)
+        self.control_frame.pack(pady=5)
+
+        self.reset_button = tk.Button(self.control_frame, text="Reset", command=self.reset_grid)
+        self.reset_button.pack(side=tk.LEFT, padx=5)
+
+        self.undo_button = tk.Button(self.control_frame, text="Undo", command=self.undo)
+        self.undo_button.pack(side=tk.LEFT, padx=5)
+
+        tk.Label(self.control_frame, text="Rows:").pack(side=tk.LEFT)
+        self.rows_entry = tk.Entry(self.control_frame, width=5)
+        self.rows_entry.pack(side=tk.LEFT, padx=2)
+
+        tk.Label(self.control_frame, text="Cols:").pack(side=tk.LEFT)
+        self.cols_entry = tk.Entry(self.control_frame, width=5)
+        self.cols_entry.pack(side=tk.LEFT, padx=2)
+
+        self.set_button = tk.Button(self.control_frame, text="Set Size", command=self.set_size)
+        self.set_button.pack(side=tk.LEFT, padx=5)
+
+        # Grid container
+        self.grid_frame = tk.Frame(root)
+        self.grid_frame.pack(pady=5)
+
+        self.min_row = self.min_col = -1
+        self.max_row = self.max_col = 1
+
+        # Flag to track the first click
+        self.first_click = True
+
+        self.render_grid()
+
+    def render_grid(self):
+        for row in range(self.min_row, self.max_row + 1):
+            for col in range(self.min_col, self.max_col + 1):
+                if (row, col) not in self.grid:
+                    btn = tk.Button(self.grid_frame,
+                                    command=lambda r=row, c=col: self.on_click(r, c))
+                    btn.config(width=self.button_pixel_size[0] // 7,
+                               height=self.button_pixel_size[1] // 15)
+                    if self.first_click:
+                        if row != 0 or col != 0:
+                            btn.config(state=tk.DISABLED)  # Disable all buttons except the center one
+                    self.grid[(row, col)] = btn
+
+        self.update_layout()
+
+    def update_layout(self):
+        for widget in self.grid_frame.winfo_children():
+            widget.grid_forget()
+
+        rows = self.max_row - self.min_row + 1
+        cols = self.max_col - self.min_col + 1
+
+        for r in range(rows):
+            self.grid_frame.rowconfigure(r, weight=1)
+        for c in range(cols):
+            self.grid_frame.columnconfigure(c, weight=1)
+
+        for (r, c), btn in self.grid.items():
+            grid_r = r - self.min_row
+            grid_c = c - self.min_col
+            btn.grid(row=grid_r, column=grid_c, padx=2, pady=2, sticky="nsew")
+
+    def on_click(self, row, col):
+        if self.first_click:
+            self.first_click = False
+            # After the first click, enable all buttons again
+            for btn in self.grid.values():
+                btn.config(state=tk.NORMAL)
+
+        self.save_state()
+
+        btn = self.grid[(row, col)]
+        btn.config(bg=self.clicked_color)
+
+        # Load and resize image to fixed pixel size
+        if os.path.exists(self.image_path):
+            width, height = self.button_pixel_size
+            img = Image.open(self.image_path)
+            img = img.resize((width, height), Image.Resampling.LANCZOS)
+            tk_img = ImageTk.PhotoImage(img)
+            self.image_cache[(row, col)] = tk_img
+            btn.config(image=tk_img, compound="center", text="")
+
+        # Determine if expansion is needed
+        rows = list(range(self.min_row, self.max_row + 1))
+        cols = list(range(self.min_col, self.max_col + 1))
+        center_row = rows[len(rows) // 2]
+        center_col = cols[len(cols) // 2]
+
+        changed = False
+        if row == self.min_row:
+            self.min_row -= 1
+            changed = True
+        if row == self.max_row:
+            self.max_row += 1
+            changed = True
+        if col == self.min_col:
+            self.min_col -= 1
+            changed = True
+        if col == self.max_col:
+            self.max_col += 1
+            changed = True
+
+        if changed:
+            self.render_grid()
+
+    def save_state(self):
+        # Save current full state
+        state = {
+            'min_row': self.min_row,
+            'max_row': self.max_row,
+            'min_col': self.min_col,
+            'max_col': self.max_col,
+            'button_states': {},
+        }
+
+        for (row, col), btn in self.grid.items():
+            state['button_states'][(row, col)] = {
+                'bg': btn.cget('bg'),
+                'image': self.image_cache.get((row, col), None)
+            }
+
+        # Deepcopy the image cache refs
+        state['image_cache'] = dict(self.image_cache)
+        self.history.append(state)
+
+    def restore_state(self, state):
+        # Destroy all current buttons
+        for btn in self.grid.values():
+            btn.destroy()
+
+        self.grid.clear()
+        self.image_cache.clear()
+
+        self.min_row = state['min_row']
+        self.max_row = state['max_row']
+        self.min_col = state['min_col']
+        self.max_col = state['max_col']
+        self.image_cache = dict(state['image_cache'])
+
+        for (row, col), data in state['button_states'].items():
+            btn = tk.Button(self.grid_frame,
+                            command=lambda r=row, c=col: self.on_click(r, c))
+            btn.config(width=self.button_pixel_size[0] // 7,
+                       height=self.button_pixel_size[1] // 15,
+                       bg=data['bg'])
+            if data['image']:
+                btn.config(image=data['image'], compound="center", text="")
+            self.grid[(row, col)] = btn
+
+        self.update_layout()
+
+    def undo(self):
+        if not self.history:
+            return
+        last_state = self.history.pop()
+        self.restore_state(last_state)
+
+    def reset_grid(self):
+        for btn in self.grid.values():
+            btn.destroy()
+        self.grid.clear()
+        self.image_cache.clear()
+        self.history.clear()
+
+        self.min_row = self.min_col = -1
+        self.max_row = self.max_col = 1
+
+        self.first_click = True  # Reset the first click flag
+        self.render_grid()
+
+    def set_size(self):
+        try:
+            rows = int(self.rows_entry.get())
+            cols = int(self.cols_entry.get())
+            if rows < 1 or cols < 1:
+                raise ValueError
+
+            self.history.clear()
+            half_r = rows // 2
+            half_c = cols // 2
+            self.min_row = -half_r
+            self.max_row = self.min_row + rows - 1
+            self.min_col = -half_c
+            self.max_col = self.min_col + cols - 1
+
+            for btn in self.grid.values():
+                btn.destroy()
+            self.grid.clear()
+            self.image_cache.clear()
+            self.render_grid()
+        except ValueError:
+            messagebox.showerror("Invalid input", "Please enter positive integers for rows and columns.")
+
+
+
+
+
+
+
+
+
+
+
+
+import tkinter as tk
+from PIL import Image, ImageTk
+import os
+
+class Main:
+    def __init__(self, root):
+        self.clicked_color = "lightblue"
+        self.default_color = "SystemButtonFace"
+        self.grid = {}  # {(row, col): button}
+        self.image_cache = {}  # Prevent garbage collection
+
+        self.image_path = os.path.join(os.path.dirname(__file__), "test.png")
+        self.button_pixel_size = (100, 100)
+
+        # History of full states
+        self.history = []
+
+        # Control panel
+        self.control_frame = tk.Frame(root)
+        self.control_frame.pack(pady=5)
+
+        self.reset_button = tk.Button(self.control_frame, text="Reset", command=self.reset_grid)
+        self.reset_button.pack(side=tk.LEFT, padx=5)
+
+        self.undo_button = tk.Button(self.control_frame, text="Undo", command=self.undo)
+        self.undo_button.pack(side=tk.LEFT, padx=5)
+
+        tk.Label(self.control_frame, text="Rows:").pack(side=tk.LEFT)
+        self.rows_entry = tk.Entry(self.control_frame, width=5)
+        self.rows_entry.pack(side=tk.LEFT, padx=2)
+
+        tk.Label(self.control_frame, text="Cols:").pack(side=tk.LEFT)
+        self.cols_entry = tk.Entry(self.control_frame, width=5)
+        self.cols_entry.pack(side=tk.LEFT, padx=2)
+
+        self.set_button = tk.Button(self.control_frame, text="Set Size", command=self.set_size)
+        self.set_button.pack(side=tk.LEFT, padx=5)
+
+        # Grid container
+        self.grid_frame = tk.Frame(root)
+        self.grid_frame.pack(pady=5)
+
+        self.min_row = self.min_col = -1
+        self.max_row = self.max_col = 1
+
+        # Flag to track the first click
+        self.first_click = True
+
+        self.render_grid()
+
+    def render_grid(self):
+        for row in range(self.min_row, self.max_row + 1):
+            for col in range(self.min_col, self.max_col + 1):
+                if (row, col) not in self.grid:
+                    btn = tk.Button(self.grid_frame,
+                                    command=lambda r=row, c=col: self.on_click(r, c))
+                    btn.config(width=self.button_pixel_size[0] // 7,
+                               height=self.button_pixel_size[1] // 15)
+                    if self.first_click:
+                        if row != 0 or col != 0:
+                            btn.config(state=tk.DISABLED)  # Disable all buttons except the center one
+                    self.grid[(row, col)] = btn
+
+        self.update_layout()
+
+    def update_layout(self):
+        for widget in self.grid_frame.winfo_children():
+            widget.grid_forget()
+
+        rows = self.max_row - self.min_row + 1
+        cols = self.max_col - self.min_col + 1
+
+        for r in range(rows):
+            self.grid_frame.rowconfigure(r, weight=1)
+        for c in range(cols):
+            self.grid_frame.columnconfigure(c, weight=1)
+
+        for (r, c), btn in self.grid.items():
+            grid_r = r - self.min_row
+            grid_c = c - self.min_col
+            btn.grid(row=grid_r, column=grid_c, padx=2, pady=2, sticky="nsew")
+
+    def on_click(self, row, col):
+        if self.first_click:
+            self.first_click = False
+            # After the first click, enable all buttons again
+            for btn in self.grid.values():
+                btn.config(state=tk.NORMAL)
+
+        self.save_state()
+
+        btn = self.grid[(row, col)]
+        btn.config(bg=self.clicked_color)
+
+        # Load and resize image to fixed pixel size
+        if os.path.exists(self.image_path):
+            width, height = self.button_pixel_size
+            img = Image.open(self.image_path)
+            img = img.resize((width, height), Image.Resampling.LANCZOS)
+            tk_img = ImageTk.PhotoImage(img)
+            self.image_cache[(row, col)] = tk_img
+            btn.config(image=tk_img, compound="center", text="")
+
+        # Determine if expansion is needed
+        rows = list(range(self.min_row, self.max_row + 1))
+        cols = list(range(self.min_col, self.max_col + 1))
+        center_row = rows[len(rows) // 2]
+        center_col = cols[len(cols) // 2]
+
+        changed = False
+        if row == self.min_row:
+            self.min_row -= 1
+            changed = True
+        if row == self.max_row:
+            self.max_row += 1
+            changed = True
+        if col == self.min_col:
+            self.min_col -= 1
+            changed = True
+        if col == self.max_col:
+            self.max_col += 1
+            changed = True
+
+        if changed:
+            self.render_grid()
+
+    def save_state(self):
+        # Save current full state
+        state = {
+            'min_row': self.min_row,
+            'max_row': self.max_row,
+            'min_col': self.min_col,
+            'max_col': self.max_col,
+            'button_states': {},
+        }
+
+        for (row, col), btn in self.grid.items():
+            state['button_states'][(row, col)] = {
+                'bg': btn.cget('bg'),
+                'image': self.image_cache.get((row, col), None)
+            }
+
+        # Deepcopy the image cache refs
+        state['image_cache'] = dict(self.image_cache)
+        self.history.append(state)
+
+    def restore_state(self, state):
+        # Destroy all current buttons
+        for btn in self.grid.values():
+            btn.destroy()
+
+        self.grid.clear()
+        self.image_cache.clear()
+
+        self.min_row = state['min_row']
+        self.max_row = state['max_row']
+        self.min_col = state['min_col']
+        self.max_col = state['max_col']
+        self.image_cache = dict(state['image_cache'])
+
+        for (row, col), data in state['button_states'].items():
+            btn = tk.Button(self.grid_frame,
+                            command=lambda r=row, c=col: self.on_click(r, c))
+            btn.config(width=self.button_pixel_size[0] // 7,
+                       height=self.button_pixel_size[1] // 15,
+                       bg=data['bg'])
+            if data['image']:
+                btn.config(image=data['image'], compound="center", text="")
+            self.grid[(row, col)] = btn
+
+        self.update_layout()
+
+    def undo(self):
+        if not self.history:
+            return
+        last_state = self.history.pop()
+        self.restore_state(last_state)
+
+    def reset_grid(self):
+        for btn in self.grid.values():
+            btn.destroy()
+        self.grid.clear()
+        self.image_cache.clear()
+        self.history.clear()
+
+        self.min_row = self.min_col = -1
+        self.max_row = self.max_col = 1
+
+        self.first_click = True  # Reset the first click flag
+        self.render_grid()
+
+    def set_size(self):
+        try:
+            rows = int(self.rows_entry.get())
+            cols = int(self.cols_entry.get())
+            if rows < 1 or cols < 1:
+                raise ValueError
+
+            self.history.clear()
+            half_r = rows // 2
+            half_c = cols // 2
+            self.min_row = -half_r
+            self.max_row = self.min_row + rows - 1
+            self.min_col = -half_c
+            self.max_col = self.min_col + cols - 1
+
+            for btn in self.grid.values():
+                btn.destroy()
+            self.grid.clear()
+            self.image_cache.clear()
+            self.render_grid()
+        except ValueError:
+            messagebox.showerror("Invalid input", "Please enter positive integers for rows and columns.")
+
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = Main(root)
+    root.mainloop()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#     from .constants import APP_TITLE, MAPS_VIEW_TITLE
+# import tkinter as tk
+# from tkinter import ttk
+# from enum import Enum
+# from tkinter import PhotoImage
+# from PIL import Image, ImageTk
+# import os
+
+# class ButtonType(Enum):
+#     START = "start"
+#     COL = "col"
+#     ROW = "row"
+
+# class MapView:
+#     def __init__(self, root, go_back_callback=None):
+#         self.root = root
+#         root.title(f"{APP_TITLE} - {MAPS_VIEW_TITLE}")
+
+#         # Set initial window size (e.g., 400x300) and minimum size (e.g., 400x300)
+#         self.min_width = 400
+#         self.min_height = 300
+#         self.root.geometry(f"{self.min_width}x{self.min_height}")  # Explicit starting size
+#         self.max_height = 600  # Maximum height before enabling scroll
+#         self.root.minsize(self.min_width, self.min_height)  # Minimum size to prevent shrinking below content
+
+#         # Create a canvas and a vertical scrollbar
+#         self.canvas = tk.Canvas(root)
+#         self.scrollbar = tk.Scrollbar(root, orient="vertical", command=self.canvas.yview)
+#         self.canvas.configure(yscrollcommand=self.scrollbar.set)
+#         self.max_height = 800
+#         self.canvas.config(height=self.max_height)  # prevent canvas from growing vertically
+#         self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)       # Windows and macOS
+#         self.canvas.bind_all("<Button-4>", self._on_mousewheel)         # Linux scroll up
+#         self.canvas.bind_all("<Button-5>", self._on_mousewheel)         # Linux scroll down
+
+
+#         # Create a frame for content
+#         self.content_frame = ttk.Frame(self.canvas, padding=0)
+
+#         # Add content frame to canvas
+#         self.canvas.create_window((0, 0), window=self.content_frame, anchor="nw")
+
+#         # Place canvas and scrollbar in root window
+#         self.canvas.pack(side="left", fill="both", expand=True)
+#         self.scrollbar.pack(side="right", fill="y")
+
+#         self.button_pixel_size = (80, 80)
+
+#         style = ttk.Style()
+#         style.configure("Zigzag.TButton", font=("Helvetica", 12), padding=5)
+
+#         self.grid = []
+#         self.rows = 0
+#         self.cols = 0
+
+#         self.buttons = {}
+#         self._init_buttons()
+#         self.render_buttons()
+
+#         # Update canvas scroll region and check window size
+#         self.canvas.update_idletasks()
+#         # self._update_window_size()
+
+#         # Bind the canvas resizing event to the update_scroll_region method
+#         self.content_frame.bind("<Configure>", self.update_scroll_region)
+
+#     def update_scroll_region(self, event):
+#         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+#         # Enable or disable scrollbar based on height of the content
+#         content_height = self.canvas.bbox("all")[3]  # bottom-most y-coordinate
+#         if content_height > self.max_height:
+#             self.scrollbar.pack(side="right", fill="y")
+#         else:
+#             self.scrollbar.pack_forget()
+#     def _on_mousewheel(self, event):
+#         if event.num == 4:  # Linux scroll up
+#             self.canvas.yview_scroll(-1, "units")
+#         elif event.num == 5:  # Linux scroll down
+#             self.canvas.yview_scroll(1, "units")
+#         else:  # Windows and macOS
+#             direction = -1 if event.delta > 0 else 1
+#             self.canvas.yview_scroll(direction, "units")
+#     def _update_window_size(self):
+#         self.root.update_idletasks()
+#         width = max(self.content_frame.winfo_reqwidth(), self.min_width)
+#         height = min(max(self.content_frame.winfo_reqheight(), self.min_height), self.max_height)
+
+
+#         # Set window size, and lock horizontal resizing by using minsize
+#         self.root.geometry(f"{width}x{height}")
+#         self.root.minsize(width, 0)  # lock min width to content
+#         self.root.maxsize(self.root.winfo_screenwidth(), self.max_height)  # lock max width as well (optional)
+
+#     def on_click(self):
+#         print("Button clicked!")
+
+#     def _init_buttons(self):
+#         self.buttons = {
+#             ButtonType.START: {"display": True, "fn": self._render_start_button, "button": None},
+#             ButtonType.COL: {"display": False, "fn": self._render_next_col_button, "button": None},
+#             ButtonType.ROW: {"display": False, "fn": self._render_next_row_button, "button": None},
+#         }
+
+#     def render_buttons(self):
+#         for key, value in self.buttons.items():
+#             display = value.get("display", False)
+#             if display:
+#                 if value["button"] is None:
+#                     value["fn"]()
+#                 if display == "right":
+#                     self.buttons[key]["button"].grid(row=self.rows - 1, column=len(self.grid[-1]))
+#                 elif display == "left":
+#                     col = next((i for i, x in enumerate(self.grid[-1]) if x is not None), 0) - 1
+#                     self.buttons[key]["button"].grid(row=self.rows - 1, column=col)
+#                 else:
+#                     if self.rows % 2:
+#                         self.buttons[key]["button"].grid(row=self.rows, column=self.cols - 1)
+#                     else:
+#                         self.buttons[key]["button"].grid(row=self.rows, column=0)
+#             else:
+#                 self._destroy_button(key)
+
+#     def _destroy_button(self, key):
+#         button = self.buttons[key].get("button")
+#         if button:
+#             button.destroy()
+#             self.buttons[key]["button"] = None
+
+#     def _make_grid_button(self, text, command):
+#         return tk.Button(
+#             self.content_frame,
+#             text=text,
+#             command=command,
+#             width=self.button_pixel_size[0] // 7,
+#             height=self.button_pixel_size[1] // 15,
+#             font=("Helvetica", 18),
+#             bg="#cccccc",
+#             borderwidth=0,
+#             highlightthickness=0,
+#         )
+
+#     def _make_plus_button(self, text, command):
+#         return tk.Button(
+#             self.content_frame,
+#             text=text,
+#             command=command,
+#             width=self.button_pixel_size[0] // 7,
+#             height=self.button_pixel_size[1] // 15,
+#             font=("Helvetica", 18),
+#             borderwidth=0,
+#             highlightthickness=0,
+#         )
+
+#     def _render_start_button(self):
+#         button =  ttk.Button(
+#             self.content_frame,
+#             text="Comenzar",
+#             command=lambda: (self.scan(0, 0), self.add_cell()),
+#             style="Zigzag.TButton"
+#         )
+#         button.grid(row=0, column=0)
+#         self.buttons[ButtonType.START]["button"] = button
+
+#     def _render_next_col_button(self):
+#         button = self._make_plus_button("+", self.add_cell)
+#         self.buttons[ButtonType.COL]["button"] = button
+
+#     def _render_next_row_button(self):
+#         button = self._make_plus_button("+", lambda: self.add_cell(row=True))
+#         self.buttons[ButtonType.ROW]["button"] = button
+
+#     def scan(self, row, col):
+#         print(f"Scan at: ({row}, {col})")
+
+#     def add_cell(self, row=False):
+#         button = self._make_grid_button("", None)
+#         if not self.grid:  # Initial cell
+#             self.buttons[ButtonType.START]["display"] = False
+#             self.buttons[ButtonType.COL]["display"] = "right"
+#             self.grid.append([button])
+#         elif len(self.grid) == 1:
+#             if len(self.grid[0]) > 1 and row:
+#                 self.buttons[ButtonType.ROW]["display"] = False
+#                 self.buttons[ButtonType.COL]["display"] = "left"
+#                 self.grid.append([None] * len(self.grid[0]))
+#                 self.grid[-1][-1] = button
+#             else:
+#                 self.buttons[ButtonType.ROW]["display"] = True
+#                 self.grid[0].append(button)
+#         elif not len(self.grid) % 2:
+#             for index in reversed(range(len(self.grid[-1]))):
+#                 if self.grid[-1][index] is None:
+#                     if index == 0:
+#                         self.buttons[ButtonType.ROW]["display"] = True
+#                         self.buttons[ButtonType.COL]["display"] = False
+#                     self.grid[-1][index] = button
+#                     break
+#                 elif index == 0:
+#                     self.buttons[ButtonType.ROW]["display"] = False
+#                     self.buttons[ButtonType.COL]["display"] = "right"
+#                     self.grid.append([button])
+#         else:
+#             if len(self.grid[-1]) == len(self.grid[0]):
+#                 self.buttons[ButtonType.ROW]["display"] = False
+#                 self.buttons[ButtonType.COL]["display"] = "left"
+#                 self.grid.append([None] * len(self.grid[0]))
+#                 self.grid[-1][-1] = button
+#             else:
+#                 if len(self.grid[-1]) == len(self.grid[0]) - 1:
+#                     self.buttons[ButtonType.ROW]["display"] = True
+#                     self.buttons[ButtonType.COL]["display"] = False
+#                 self.grid[-1].append(button)
+
+#         for r, row_items in enumerate(self.grid):
+#             for c, btn in enumerate(row_items):
+#                 if isinstance(btn, tk.Button):
+#                     btn.configure(text=f"{self._row_letter(r)}, {c}")
+#                     btn.configure(command=self._make_callback(r, c))
+#                     btn.grid(row=r, column=c)
+
+#         self.rows = len(self.grid)
+#         self.cols = max(len(row) for row in self.grid)
+#         self.render_buttons()
+#         self._update_window_size()
+
+#     def _make_callback(self, r, c):
+#         return lambda: self.scan(r, c)
+
+#     @staticmethod
+#     def _row_letter(n):
+#         result = ''
+#         while n >= 0:
+#             result = chr(n % 26 + ord('A')) + result
+#             n = n // 26 - 1
+#         return result
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# from .constants import APP_TITLE, MAPS_VIEW_TITLE
+# import tkinter as tk
+# from tkinter import ttk
+# from enum import Enum
+# from tkinter import PhotoImage
+# from PIL import Image, ImageTk
+# import os
+
+# class ButtonType(Enum):
+#     START = "start"
+#     COL = "col"
+#     ROW = "row"
+
+# class MapView:
+#     def __init__(self, root, go_back_callback=None):
+#         self.root = root
+#         root.title(f"{APP_TITLE} - {MAPS_VIEW_TITLE}")
+
+#         # Set initial window size (e.g., 400x300) and minimum size (e.g., 400x300)
+#         self.root.geometry("400x300")  # Explicit starting size
+#         # self.root.minsize(400, 300)  # Minimum size to prevent shrinking below content
+
+#         self.center_frame = ttk.Frame(root, padding=0)
+#         self.center_frame.pack(expand=True, anchor="center")
+#         # self.canvas.create_window((0, 0), window=self.center_frame, anchor="nw")
+#         # self.center_frame.bind("<Configure>", self.update_scroll_region)
+
+#         self.button_pixel_size = (80, 80)
+
+#         style = ttk.Style()
+#         style.configure("Zigzag.TButton", font=("Helvetica", 12), padding=5)
+
+#         self.grid = []
+#         self.rows = 0
+#         self.cols = 0
+
+#         self.buttons = {}
+#         self._init_buttons()
+#         self.render_buttons()
+
+#         root.update_idletasks()  # Force geometry update
+
+#     # Function to update the scroll region when the content changes
+#     def update_scroll_region(event):
+#         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+
+#     def _update_window_size(self):
+#         self.root.update_idletasks()  # Ensure layout is updated
+#         width = self.center_frame.winfo_reqwidth()
+#         height = self.center_frame.winfo_reqheight()
+#         # self.root.geometry(f"{width}x{height}")  # Set to exact size
+#         self.root.minsize(width, height)  # Prevent shrinking below content
+
+#     def on_click(self):
+#         print("Button clicked!")
+
+#     def _init_buttons(self):
+#         self.buttons = {
+#             ButtonType.START: {"display": True, "fn": self._render_start_button, "button": None},
+#             ButtonType.COL: {"display": False, "fn": self._render_next_col_button, "button": None},
+#             ButtonType.ROW: {"display": False, "fn": self._render_next_row_button, "button": None},
+#         }
+
+#     def render_buttons(self):
+#         for key, value in self.buttons.items():
+#             display = value.get("display", False)
+#             if display:
+#                 if value["button"] is None:
+#                     value["fn"]()
+#                 if display == "right":
+#                     self.buttons[key]["button"].grid(row=self.rows - 1, column=len(self.grid[-1]))
+#                 elif display == "left":
+#                     col = next((i for i, x in enumerate(self.grid[-1]) if x is not None), 0) - 1
+#                     self.buttons[key]["button"].grid(row=self.rows - 1, column=col)
+#                 else:
+#                     if self.rows % 2:
+#                         self.buttons[key]["button"].grid(row=self.rows, column=self.cols - 1)
+#                     else:
+#                         self.buttons[key]["button"].grid(row=self.rows, column=0)
+#             else:
+#                 self._destroy_button(key)
+
+#     def _destroy_button(self, key):
+#         button = self.buttons[key].get("button")
+#         if button:
+#             button.destroy()
+#             self.buttons[key]["button"] = None
+
+#     def _make_grid_button(self, text, command):
+#         return tk.Button(
+#             self.center_frame,
+#             text=text,
+#             command=command,
+#             width=self.button_pixel_size[0] // 7,
+#             height=self.button_pixel_size[1] // 15,
+#             font=("Helvetica", 18),
+#             bg="#cccccc",
+#             borderwidth=0,
+#             highlightthickness=0,
+#         )
+
+#     def _make_plus_button(self, text, command):
+#         # img_boton = tk.PhotoImage(file="assets/button.png")
+#         # boton = ttk.Button(self.center_frame,width=self.button_pixel_size[0] // 7,image=img_boton)
+#         # boton.place(x=50, y=50)
+#         # return boton
+#         return tk.Button(
+#             self.center_frame,
+#             text=text,
+#             command=command,
+#             width=self.button_pixel_size[0] // 7,
+#             height=self.button_pixel_size[1] // 15,
+#             font=("Helvetica", 18),
+#             borderwidth=0,
+#             highlightthickness=0,
+#         )
+
+#     def _render_start_button(self):
+#         button =  ttk.Button(
+#             self.center_frame,
+#             text="Comenzar",
+#             command=lambda: (self.scan(0, 0), self.add_cell()),
+#             style="Zigzag.TButton"
+#         )
+#         button.grid(row=0, column=0)
+#         self.buttons[ButtonType.START]["button"] = button
+
+#     def _render_next_col_button(self):
+#         button = self._make_plus_button("+", self.add_cell)
+#         self.buttons[ButtonType.COL]["button"] = button
+
+#     def _render_next_row_button(self):
+#         button = self._make_plus_button("+", lambda: self.add_cell(row=True))
+#         self.buttons[ButtonType.ROW]["button"] = button
+
+#     def scan(self, row, col):
+#         print(f"Scan at: ({row}, {col})")
+
+#     def add_cell(self, row=False):
+#         button = self._make_grid_button("", None)
+#         if not self.grid:  # Initial cell
+#             self.buttons[ButtonType.START]["display"] = False
+#             self.buttons[ButtonType.COL]["display"] = "right"
+#             self.grid.append([button])
+#         elif len(self.grid) == 1:
+#             if len(self.grid[0]) > 1 and row:
+#                 self.buttons[ButtonType.ROW]["display"] = False
+#                 self.buttons[ButtonType.COL]["display"] = "left"
+#                 self.grid.append([None] * len(self.grid[0]))
+#                 self.grid[-1][-1] = button
+#             else:
+#                 self.buttons[ButtonType.ROW]["display"] = True
+#                 self.grid[0].append(button)
+#         elif not len(self.grid) % 2:
+#             for index in reversed(range(len(self.grid[-1]))):
+#                 if self.grid[-1][index] is None:
+#                     if index == 0:
+#                         self.buttons[ButtonType.ROW]["display"] = True
+#                         self.buttons[ButtonType.COL]["display"] = False
+#                     self.grid[-1][index] = button
+#                     break
+#                 elif index == 0:
+#                     self.buttons[ButtonType.ROW]["display"] = False
+#                     self.buttons[ButtonType.COL]["display"] = "right"
+#                     self.grid.append([button])
+#         else:
+#             if len(self.grid[-1]) == len(self.grid[0]):
+#                 self.buttons[ButtonType.ROW]["display"] = False
+#                 self.buttons[ButtonType.COL]["display"] = "left"
+#                 self.grid.append([None] * len(self.grid[0]))
+#                 self.grid[-1][-1] = button
+#             else:
+#                 if len(self.grid[-1]) == len(self.grid[0]) - 1:
+#                     self.buttons[ButtonType.ROW]["display"] = True
+#                     self.buttons[ButtonType.COL]["display"] = False
+#                 self.grid[-1].append(button)
+
+#         for r, row_items in enumerate(self.grid):
+#             for c, btn in enumerate(row_items):
+#                 if isinstance(btn, tk.Button):
+#                     btn.configure(text=f"{self._row_letter(r)}, {c}")
+#                     btn.configure(command=self._make_callback(r, c))
+#                     btn.grid(row=r, column=c)
+
+#         self.rows = len(self.grid)
+#         self.cols = max(len(row) for row in self.grid)
+#         self.render_buttons()
+#         self._update_window_size()
+
+#     def _make_callback(self, r, c):
+#         return lambda: self.scan(r, c)
+
+#     @staticmethod
+#     def _row_letter(n):
+#         result = ''
+#         while n >= 0:
+#             result = chr(n % 26 + ord('A')) + result
+#             n = n // 26 - 1
+#         return result
+
+

@@ -1,6 +1,6 @@
 prefixes:
 - code: TBD
-  last_index: '1'
+  last_index: '4'
 - code: 01_P-PO
   last_index: 6
 - code: 02_P-PPA
@@ -9,8 +9,6 @@ prefixes:
   last_index: '1'
 - code: 03_P-POPa
   last_index: 8
-- code: 03_P-POPb
-  last_index: '14'
 - code: 04_P-CFF
   last_index: 13
 - code: 04_P-COA
@@ -24,9 +22,9 @@ prefixes:
 - code: TBDa
   last_index: 2
 last_scan:
-  prefix: 03_P-POPb
-  folder: C:\Users\Wally
-  filename: 03_P-POPb_14_A
+  prefix: TBD
+  folder: D:\Desktop
+  filename: TBD_4_A
 options:
   scanner:
     naps2_path: C:\Program Files\NAPS2\NAPS2.Console.exe

@@ -321,32 +321,32 @@ class MapView:
 
     def add_cell(self, row=False):
         button = self._make_grid_button("", None)
-        if not self.grid:
+        if not self.grid:  # Empty grid. Create first cell: Create first row and add first col -> Next only "Add col" available
             self.buttons[ButtonType.START]["display"] = False
             self.buttons[ButtonType.COL]["display"] = "right"
             self.grid.append([button])
-        elif len(self.grid) == 1:
-            if len(self.grid[0]) > 1 and row:
+        elif len(self.grid) == 1: # Only one row with at least one cell -> Both "Add col" and "Add row" available
+            if len(self.grid[0]) > 1 and row: # More than one cell on first row, requested new row
                 self.buttons[ButtonType.ROW]["display"] = False
                 self.buttons[ButtonType.COL]["display"] = "left"
                 self.grid.append([None] * len(self.grid[0]))
                 self.grid[-1][-1] = button
-            else:
+            else: # Either adding second cell (always new col) or requested new col on first row
                 self.buttons[ButtonType.ROW]["display"] = True
                 self.grid[0].append(button)
-        elif not len(self.grid) % 2:
-            for index in reversed(range(len(self.grid[-1]))):
-                if self.grid[-1][index] is None:
-                    if index == 0:
+        elif not len(self.grid) % 2: # Starting from second row, all even rows (2, 4, 6, etc)
+            for index in reversed(range(len(self.grid[-1]))): # "Add col" available on all but last col, "Add row" available on last col
+                if self.grid[-1][index] is None: # Go left
+                    if index == 0: # Go down
                         self.buttons[ButtonType.ROW]["display"] = True
                         self.buttons[ButtonType.COL]["display"] = False
                     self.grid[-1][index] = button
                     break
-                elif index == 0:
+                elif index == 0: # Go right on next row
                     self.buttons[ButtonType.ROW]["display"] = False
                     self.buttons[ButtonType.COL]["display"] = "right"
                     self.grid.append([button])
-        else:
+        else: # All odd rows after the second one (3, 5, 7, etc)
             if len(self.grid[-1]) == len(self.grid[0]):
                 self.buttons[ButtonType.ROW]["display"] = False
                 self.buttons[ButtonType.COL]["display"] = "left"
