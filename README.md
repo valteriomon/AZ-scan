@@ -17,6 +17,8 @@
     - Catch scanner error
     - Left click menu: Open, Rescan
     - Join/create PTO
+    - Add patch image to project button: place in right place
+    - Rotate grid ()
 - P1
     - Open existing project
     - Back to main menu
@@ -25,6 +27,11 @@
     - Set map size
     - Rotate (90 degrees) scan and save
     - Add help, shortcuts, info on how to use
+    - Rotate all images at once
+        - All (that arent rotated already) or pick which ones
+- P3
+    - Drag and drop joints generator
+
 
 ## Postcard view
 - P0
@@ -40,6 +47,12 @@
     - Preview scan
     - Checkbox "Guardar posición"
         - Acts as save, turns off on manual index change
+    - State not saving until you scan again, so "next" is last when you reopen
+    - Right click option, open editor
+    - Split in-viewer options into a new class
+    - Image viewer: Left click - Zoom out
+        - Add quick rotate and save
+    - Skip A side
 - P1
     - Edit scan > Parallel to scan program (crop while scanning > Go back and forth between scans?)
         - Crop
@@ -62,6 +75,7 @@
     - Check unused requirements
 - P1
     - Remove git_pull hardcoded directories
+    - Launch Editor
 - P2
     - Improve updating remotely
         - Remove dev libraries from compilation

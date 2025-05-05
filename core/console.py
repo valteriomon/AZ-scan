@@ -1,7 +1,8 @@
 from .custom_error import FileAlreadyExistsError
 from .config import Config
+import os
+import platform, shutil
 import subprocess
-
 from pathlib import Path
 
 class Console:
@@ -11,28 +12,50 @@ class Console:
         self._state = self._config.load()
         self._options = self._state["options"]
 
-    def run(self, command, **kwargs):
+    def to_wsl_path(self, path):
+        # Converts "C:\Users\Me\file.txt" to "/mnt/c/Users/Me/file.txt"
+        drive, rest = os.path.splitdrive(path)
+        return f"/mnt/{drive[0].lower()}{rest.replace(os.sep, '/')}"
+
+    def run(self, command, use_wsl=False, **kwargs):
         """
-        Run a command using subprocess.run.
+        Run a command, automatically prepending 'wsl' on Windows and
+        converting paths if requested.
 
         Args:
             command (list or str): The command to run.
-            kwargs: Additional keyword arguments for subprocess.run.
-
-        Returns:
-            CompletedProcess: The result of subprocess.run.
+            wsl_paths (bool): Convert file paths to WSL format (only on Windows).
+            kwargs: Passed to subprocess.run.
         """
+        kwargs.setdefault("capture_output", False)
+        kwargs.setdefault("check", True)
+        kwargs.setdefault("text", True)
+
+        is_windows = platform.system().lower() == "windows"
+
+        if isinstance(command, list) and is_windows:
+            if use_wsl:
+                if shutil.which("wsl") is None:
+                    raise EnvironmentError("WSL is not installed or not found in PATH")
+
+                command = [
+                    self.to_wsl_path(arg) if isinstance(arg, str) and os.path.exists(arg) else arg
+                    for arg in command
+                ]
+                command = ['wsl'] + command
+
         command_str = " ".join(str(arg) for arg in command) if isinstance(command, list) else command
         print(f"Running command: {command_str}")
-
         try:
-            result = subprocess.run(command, capture_output=False, check=True, text=True, **kwargs)
+            result = subprocess.run(command, **kwargs)
             print("Command completed successfully.")
             return result
         except subprocess.CalledProcessError as e:
             print(f"Command failed with return code {e.returncode}")
             print(f"Output: {e.output}")
-            return e
+            raise
+
+
 
     # Naps2 CLI
     # https://www.naps2.com/doc/command-line
@@ -64,21 +87,21 @@ class Console:
 
     # Fred's ImageMagick multicrop through WSL
     # http://www.fmwconcepts.com/imagemagick/multicrop/index.php
-    def crop(self, path, full_filename):
-        input_file = f"{path}/{full_filename}"
-        output_file = f"tmp/{full_filename}"
-        command_values = {
-            "discard": '200',
-            "crop_factor": '10',
-            "coordinates": "0,0"
-        }
-        command = [
-            'wsl',
-            './scripts/multicrop',
-            '-d', command_values["discard"],
-            '-f', command_values["crop_factor"],
-            '-c', command_values["coordinates"],
-            input_file,
-            output_file
-        ]
-        self.run(command)
+    # def autocrop(self, path, full_filename):
+    #     input_file = f"{path}/{full_filename}"
+    #     output_file = f"tmp/{full_filename}"
+    #     command_values = {
+    #         "discard": '200',
+    #         "crop_factor": '10',
+    #         "coordinates": "0,0"
+    #     }
+    #     command = [
+    #         'wsl',
+    #         './scripts/multicrop',
+    #         '-d', command_values["discard"],
+    #         '-f', command_values["crop_factor"],
+    #         '-c', command_values["coordinates"],
+    #         input_file,
+    #         output_file
+    #     ]
+    #     self.run(command)

@@ -5,42 +5,71 @@ import numpy as np
 import os
 
 class ImageViewer(tk.Frame):
+    EDITOR_ENABLED = True
+
     def __init__(self, master, filename):
         super().__init__(master)
         self.filename = filename
+        self.is_main_window = isinstance(master, (tk.Tk, tk.Toplevel))
 
-        self.master.geometry("800x600")
+        if self.is_main_window:
+            master.geometry("800x600")
+            master.title("Python Image Viewer")
+            try:
+                master.iconbitmap("assets/images/logo32.ico")
+            except Exception:
+                pass
 
         self.pil_image = None
         self.my_title = "Python Image Viewer"
-
-        self.master.title(self.my_title)
-        self.master.iconbitmap("assets/images/logo32.ico")
-
+        self.resize_after_id = None
 
         self.create_widget()
-
-
         self.reset_transform()
-        self.master.after(100, self.set_image)
+        self.after(100, self.set_image)
 
+        if self.is_main_window:
+            self.pack(expand=True, fill=tk.BOTH)
+            master.bind("<Configure>", self.on_resize)  # Bind to top-level winImageViewer.zoom_fitdow
+        else:
+            self.bind("<Configure>", self.on_resize)    # Bind to self when embedded
+
+    def on_resize(self, event):
+        if self.resize_after_id:
+            self.after_cancel(self.resize_after_id)
+        self.resize_after_id = self.after(200, lambda: (self.zoom_fit(self.pil_image.width, self.pil_image.height), self.redraw_image()))
 
     def create_widget(self):
-        frame_statusbar = tk.Frame(self.master, bd=1, relief = tk.SUNKEN)
-        self.label_image_info = tk.Label(frame_statusbar, text="image info", anchor=tk.E, padx = 5)
+        frame_statusbar = tk.Frame(self, bd=1, relief=tk.SUNKEN)
+        self.label_filepath = tk.Label(frame_statusbar, text=os.path.basename(self.filename), anchor=tk.W, padx=5)
+        self.label_filepath.pack(side=tk.LEFT)
+
+        self.label_image_info = tk.Label(frame_statusbar, text="image info", anchor=tk.E, padx=5)
         self.label_image_info.pack(side=tk.RIGHT)
+
         frame_statusbar.pack(side=tk.BOTTOM, fill=tk.X)
 
+        self.canvas = tk.Canvas(self, background="black")
+        self.canvas.pack(expand=True, fill=tk.BOTH)
 
-        self.canvas = tk.Canvas(self.master, background="black")
-        self.canvas.pack(expand=True,  fill=tk.BOTH)
+        # Bind to self.canvas for more consistent behavior across modes
+        bind_target = self.canvas
 
+        bind_target.bind("<Button-1>", self.mouse_down_left)
+        bind_target.bind("<B1-Motion>", self.mouse_move_left)
+        bind_target.bind("<Double-Button-1>", self.mouse_double_click_left)
+        bind_target.bind("<MouseWheel>", self.mouse_wheel)
 
-        self.master.bind("<Button-1>", self.mouse_down_left)
-        self.master.bind("<B1-Motion>", self.mouse_move_left)
-        self.master.bind("<Double-Button-1>", self.mouse_double_click_left)
-        self.master.bind("<MouseWheel>", self.mouse_wheel)
-        self.master.bind("<Escape>", self.menu_quit_clicked)
+        if ImageViewer.EDITOR_ENABLED:
+            # Context menu
+            self.context_menu = tk.Menu(self.canvas, tearoff=0)
+            self.context_menu.add_command(label="Print file path", command=self.print_filepath)
+            bind_target.bind("<Button-3>", self.show_context_menu)
+
+        # Escape key should still go to top-level window
+        if self.is_main_window:
+            self.master.bind("<Escape>", self.menu_quit_clicked)
+
 
     def set_image(self):
         if not self.filename:
@@ -49,8 +78,10 @@ class ImageViewer(tk.Frame):
         self.zoom_fit(self.pil_image.width, self.pil_image.height)
         self.zoom_level = 0
         self.draw_image(self.pil_image)
-        self.master.title(self.my_title + " - " + os.path.basename(self.filename))
+        if self.is_main_window:
+            self.master.title(self.my_title + " - " + os.path.basename(self.filename))
         self.label_image_info["text"] = f"{self.pil_image.format} : {self.pil_image.width} x {self.pil_image.height} {self.pil_image.mode}"
+
 
     def menu_quit_clicked(self, event):
         self.master.destroy()
@@ -87,11 +118,11 @@ class ImageViewer(tk.Frame):
                     self.zoom_level -= 1
                 else:
                     self.zoom_fit(self.pil_image.width, self.pil_image.height)
-        else:
-            if event.delta > 0:
-                self.rotate_at(5, event.x, event.y)  # Rotate clockwise
-            else:
-                self.rotate_at(-5, event.x, event.y)  # Rotate counter-clockwise
+        # else:
+        #     if event.delta > 0:
+        #         self.rotate_at(90, event.x, event.y)  # Rotate clockwise
+        #     else:
+        #         self.rotate_at(-90, event.x, event.y)  # Rotate counter-clockwise
 
         self.redraw_image()
 
@@ -196,7 +227,14 @@ class ImageViewer(tk.Frame):
             return
         self.draw_image(self.pil_image)
 
+    def show_context_menu(self, event):
+        try:
+            self.context_menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            self.context_menu.grab_release()
 
+    def print_filepath(self):
+        print(self.filename)
 # if __name__ == "__main__":
 #     root = tk.Tk()
 #     app = ImageViewer(master=root)

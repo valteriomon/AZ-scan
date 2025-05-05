@@ -1,6 +1,7 @@
 from .constants import APP_TITLE, MAPS_VIEW_TITLE
 from .image_viewer  import ImageViewer
 from .console import Console
+import .utils as utils
 from core.custom_error import FileAlreadyExistsError
 from enum import Enum
 import os
@@ -361,7 +362,7 @@ class MapView:
         for r, row_items in enumerate(self.grid):
             for c, btn in enumerate(row_items):
                 if isinstance(btn, tk.Button):
-                    btn.configure(text=f"{self._row_letter(r)}, {c}")
+                    btn.configure(text=f"{utils.alpha_converter(r)}, {c}")
                     btn.configure(command=self._make_callback(r, c))
 
                     # double-click
@@ -397,23 +398,16 @@ class MapView:
     def _show_full_image(self):
         viewer = tk.Toplevel(self.root)
         viewer.focus_force()
-        image_filename = os.path.abspath("test.png")
+        image_filename = os.path.abspath("test/test.png")
 
-        ImageViewer(viewer, image_filename)
+        viewer = ImageViewer(viewer, image_filename)
+
         # viewer_window = tk.Toplevel(self.root)  # Use Toplevel instead of creating a new root
         # viewer = ImageViewer(master=viewer_window)
 
         # top.geometry("600x400")
         # viewer = ImageViewer(master=top)
         # viewer.pack(fill=tk.BOTH, expand=True)
-
-    @staticmethod
-    def _row_letter(n):
-        result = ''
-        while n >= 0:
-            result = chr(n % 26 + ord('A')) + result
-            n = n // 26 - 1
-        return result
 
     def _load_images(self, filename):
         image_path = os.path.join(filename)
@@ -475,7 +469,7 @@ class MapView:
         for row in range(self.rows):
             label = ttk.Label(
                 self.side_frame,
-                text=self._row_letter(row),
+                text=utils.alpha_converter(row),
                 anchor="center",
                 font=header_font
             )

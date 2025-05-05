@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Image Viewer with Three.js</title>
+  <style>
+    body { margin: 0; overflow: hidden; }
+    canvas { display: block; }
+    #rotateButton {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      z-index: 10;
+      padding: 10px;
+      background-color: rgba(0, 0, 0, 0.5);
+      color: white;
+      border: none;
+      font-size: 14px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <!-- Rotate button -->
+  <button id="rotateButton">Rotate Images 90°</button>
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.137.5/build/three.min.js"></script>
+  <script>
+    let scene, camera, renderer, raycaster, mouse, isDragging = false, dragObject = null;
+    let images = [];
+    let selectedImage = null;
+    let isPanning = false, lastPanPosition = { x: 0, y: 0 };
+    let gridPadding = 1.5;
+    let gridCols = 4; // Default number of columns in the grid
+    let gridRows = 4; // Default number of rows in the grid
+    let gridOffset = 3; // Starting offset for grid positioning
+    let ctrlPressed = false; // Flag for whether Ctrl is pressed
+    let connections = new Map(); // Store connections (key: pair of images, value: line)
+
+    function init() {
+      // Prompt for grid dimensions on load
+      const gridDimension = prompt("Enter grid dimensions (e.g., 4x4, 5x6):", "4x4");
+      if (gridDimension) {
+        const dimensions = gridDimension.split('x');
+        if (dimensions.length === 2) {
+          gridRows = parseInt(dimensions[0], 10);
+          gridCols = parseInt(dimensions[1], 10);
+        }
+      }
+
+      // Scene setup
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera.position.z = 5;
+
+      // Renderer setup
+      renderer = new THREE.WebGLRenderer();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      // Raycaster setup for mouse picking
+      raycaster = new THREE.Raycaster();
+      mouse = new THREE.Vector2();
+
+      // Event listeners
+      window.addEventListener('resize', onWindowResize);
+      window.addEventListener('mousedown', onMouseDown);
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+      window.addEventListener('wheel', onWheel);
+      window.addEventListener('mousedown', onMiddleMouseDown);
+      window.addEventListener('mousemove', onMiddleMouseMove);
+      window.addEventListener('mouseup', onMiddleMouseUp);
+      window.addEventListener('dragover', (e) => e.preventDefault());
+      window.addEventListener('drop', onDrop);
+      window.addEventListener('keydown', onKeyDown);
+      window.addEventListener('keyup', onKeyUp);
+
+      // Button to rotate images
+      const rotateButton = document.getElementById('rotateButton');
+      rotateButton.addEventListener('click', rotateImages);
+
+      animate();
+    }
+
+    function rotateImages() {
+      // Rotate all images by 90 degrees around the Z-axis
+      images.forEach(image => {
+        image.rotation.z += Math.PI / 2; // 90 degrees in radians
+      });
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function onMouseDown(event) {
+      if (event.button !== 0) return; // Left mouse button only
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+      // Find which object was clicked on
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(images);
+
+      if (intersects.length > 0) {
+        const clickedImage = intersects[0].object;
+
+        if (ctrlPressed && !isDragging) {
+          // Handle line creation if Ctrl is pressed and no image is being dragged
+          if (selectedImage) {
+            // Check if the line already exists between these two images
+            const key = getImagePairKey(selectedImage, clickedImage);
+            if (connections.has(key)) {
+              // If a line exists, remove it
+              scene.remove(connections.get(key));
+              connections.delete(key);
+            } else {
+              // Create a new line between the two selected images
+              createLineBetweenImages(selectedImage, clickedImage);
+            }
+
+            // Reset selected image after making the connection
+            selectedImage = null;
+          } else {
+            // Store the first selected image
+            selectedImage = clickedImage;
+          }
+        } else if (!ctrlPressed) {
+          // Handle image dragging if Ctrl is NOT pressed
+          isDragging = true;
+          selectedImage = clickedImage;
+
+          // Store the initial mouse position and image position
+          selectedImage.originalPosition = selectedImage.position.clone(); // Store original position in 3D space
+          selectedImage.mouseDownPosition = { x: event.clientX, y: event.clientY }; // Store the initial mouse position
+        }
+      }
+    }
+
+    function getImagePairKey(image1, image2) {
+      // Create a unique key for the pair of images (unordered)
+      const id1 = images.indexOf(image1);
+      const id2 = images.indexOf(image2);
+      return id1 < id2 ? `${id1}-${id2}` : `${id2}-${id1}`;
+    }
+
+    function createLineBetweenImages(image1, image2) {
+      // Calculate positions of the two images
+      const pos1 = image1.position;
+      const pos2 = image2.position;
+
+      // Create a buffer geometry for the line
+      const geometry = new THREE.BufferGeometry().setFromPoints([pos1, pos2]);
+
+      // Create the line material (bright green)
+      const material = new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 2 });
+
+      // Create the line and add it to the scene
+      const line = new THREE.Line(geometry, material);
+      scene.add(line);
+
+      // Store the line in the connections map
+      const key = getImagePairKey(image1, image2);
+      connections.set(key, line);
+    }
+
+    function onMouseMove(event) {
+      if (isDragging) {
+        // Calculate the change in mouse position (delta)
+        const dx = event.clientX - selectedImage.mouseDownPosition.x;
+        const dy = event.clientY - selectedImage.mouseDownPosition.y;
+
+        // Adjust the movement based on the zoom level (camera position)
+        const zoomFactor = camera.position.z / 50; // Adjust scaling based on zoom level
+
+        // Calculate the new image position to follow the pointer more closely
+        selectedImage.position.set(
+          selectedImage.originalPosition.x + dx * 0.05 * zoomFactor, // Fine-tuned for better movement
+          selectedImage.originalPosition.y - dy * 0.05 * zoomFactor, // Fine-tuned for better movement
+          0
+        );
+
+        // Update lines connecting this image to others
+        connections.forEach((line, key) => {
+          const [id1, id2] = key.split('-').map(Number);
+          const imageA = images[id1];
+          const imageB = images[id2];
+          if (imageA === selectedImage || imageB === selectedImage) {
+            line.geometry.setFromPoints([imageA.position, imageB.position]);
+          }
+        });
+      }
+    }
+
+    function onMouseUp() {
+      if (isDragging && selectedImage) {
+        // Stop dragging and store the final position
+        isDragging = false;
+        selectedImage = null;
+      }
+    }
+
+    function onMiddleMouseDown(event) {
+      if (event.button !== 1) return; // Middle mouse button only
+      isPanning = true;
+      lastPanPosition = { x: event.clientX, y: event.clientY };
+    }
+
+    function onMiddleMouseMove(event) {
+      if (!isPanning) return;
+
+      const dx = event.clientX - lastPanPosition.x;
+      const dy = event.clientY - lastPanPosition.y;
+      camera.position.x -= dx * 0.01;
+      camera.position.y += dy * 0.01;
+
+      lastPanPosition = { x: event.clientX, y: event.clientY };
+    }
+
+    function onMiddleMouseUp() {
+      isPanning = false;
+    }
+
+    function onWheel(event) {
+      const zoomFactor = event.deltaY > 0 ? 1.1 : 0.9;
+      camera.position.z *= zoomFactor;
+    }
+
+    function onDrop(event) {
+      event.preventDefault();
+
+      const files = [...event.dataTransfer.files].filter(file => file.type.startsWith("image/"));
+      if (files.length === 0) return;
+
+      let xOffset = gridOffset;
+      let yOffset = gridOffset;
+
+      files.forEach((file, index) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const image = new Image();
+          image.onload = () => {
+            const lowResImage = createLowResolutionImage(image);
+
+            // Create a texture for the low-res image
+            const texture = new THREE.Texture(lowResImage);
+            texture.needsUpdate = true;
+
+            // Create a plane geometry for the image
+            const aspectRatio = lowResImage.height / lowResImage.width;
+            const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+            const planeGeometry = new THREE.PlaneGeometry(3, 3 * aspectRatio); // Adjust height based on aspect ratio
+            const plane = new THREE.Mesh(planeGeometry, material);
+
+            // Position images in the user-defined grid layout
+            const rowIndex = Math.floor(index / gridCols);
+            const colIndex = index % gridCols;
+            plane.position.set(xOffset + colIndex * (plane.geometry.parameters.width + gridPadding),
+                               yOffset - rowIndex * (plane.geometry.parameters.height + gridPadding),
+                               0);
+            scene.add(plane);
+            images.push(plane);
+          };
+          image.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function createLowResolutionImage(image) {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const ratio = 0.2; // 20% resolution
+
+      const newWidth = image.width * ratio;
+      const newHeight = image.height * ratio;
+
+      canvas.width = newWidth;
+      canvas.height = newHeight;
+      ctx.drawImage(image, 0, 0, newWidth, newHeight);
+
+      return canvas;
+    }
+
+    function onKeyDown(event) {
+      if (event.key === 'Control') {
+        ctrlPressed = true;
+      }
+    }
+
+    function onKeyUp(event) {
+      if (event.key === 'Control') {
+        ctrlPressed = false;
+      }
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      renderer.render(scene, camera);
+    }
+
+    init();
+  </script>
+</body>
+</html>

@@ -1,8 +1,8 @@
 import os
 import copy
 from pathlib import Path
-from .config import Config
-from .utils import Utils
+from config import Config
+import utils as utils
 
 class AppState:
     def __init__(self):
@@ -26,7 +26,7 @@ class AppState:
     def prefix(self, value: str):
         self._state["last_scan"]["prefix"] = value
         updated_prefixes = list(self._original_state.get("prefixes", []))
-        if not self.code_exists(updated_prefixes, value):
+        if not utils.dict_key_has_value(updated_prefixes, "code", value):
             updated_prefixes.append({"code": value, "last_index": self.index})
         else:
             for entry in updated_prefixes:
@@ -101,11 +101,7 @@ class AppState:
             for prefix in self._state.get("prefixes", [])
         }
 
-    # Utility methods
-    @staticmethod
-    def code_exists(prefixes, code):
-        return Utils.dict_key_has_value(prefixes, "code", code)
-
+    # Class utility methods
     @staticmethod
     def sort_prefixes(data):
         first = data[0:1]

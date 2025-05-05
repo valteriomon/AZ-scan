@@ -91,14 +91,17 @@ def launch_app(root, AppClass):
     root.unbind("<P>")
 
     if AppClass == PostcardView:
-        root.geometry("820x600")
+        pass
     elif AppClass == MapView:
         pass
-    #     root.geometry("1000x700")
-    if os.getenv('ENVIRONMENT') == 'dev':
-        root.geometry(os.getenv('TKINTER_GEOMETRY', ''))
 
+    root.geometry("")
     AppClass(root, go_back_callback=lambda: main_menu(root))
+
+    if os.getenv('ENVIRONMENT') == 'dev':
+        geom = os.getenv('TKINTER_GEOMETRY', '')
+        root.geometry(geom)
+
     # apply_theme()
 
 def main():
