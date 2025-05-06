@@ -12,11 +12,6 @@ class Console:
         self._state = self._config.load()
         self._options = self._state["options"]
 
-    def to_wsl_path(self, path):
-        # Converts "C:\Users\Me\file.txt" to "/mnt/c/Users/Me/file.txt"
-        drive, rest = os.path.splitdrive(path)
-        return f"/mnt/{drive[0].lower()}{rest.replace(os.sep, '/')}"
-
     def run(self, command, use_wsl=False, **kwargs):
         """
         Run a command, automatically prepending 'wsl' on Windows and
@@ -33,19 +28,28 @@ class Console:
 
         is_windows = platform.system().lower() == "windows"
 
-        if isinstance(command, list) and is_windows:
-            if use_wsl:
+        if isinstance(command, list):
+            command = [str(arg) for arg in command]  # Ensure all elements are strings
+
+            if is_windows and use_wsl:
                 if shutil.which("wsl") is None:
                     raise EnvironmentError("WSL is not installed or not found in PATH")
 
                 command = [
-                    self.to_wsl_path(arg) if isinstance(arg, str) and os.path.exists(arg) else arg
+                    self.to_wsl_path(arg) if os.path.exists(arg) else arg
                     for arg in command
                 ]
                 command = ['wsl'] + command
 
-        command_str = " ".join(str(arg) for arg in command) if isinstance(command, list) else command
+            command_str = " ".join(command)
+        else:
+            command_str = str(command)
+
+            if is_windows and use_wsl:
+                command = f"wsl {command_str}"
+
         print(f"Running command: {command_str}")
+
         try:
             result = subprocess.run(command, **kwargs)
             print("Command completed successfully.")
@@ -55,7 +59,13 @@ class Console:
             print(f"Output: {e.output}")
             raise
 
+    def to_wsl_path(self, path):
+        # Converts "C:\Users\Me\file.txt" to "/mnt/c/Users/Me/file.txt"
+        drive, rest = os.path.splitdrive(path)
+        return f"/mnt/{drive[0].lower()}{rest.replace(os.sep, '/')}"
 
+    def wsl(self, command, **kwargs):
+        return self.run(command, use_wsl=True, **kwargs)
 
     # Naps2 CLI
     # https://www.naps2.com/doc/command-line

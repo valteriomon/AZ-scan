@@ -85,12 +85,23 @@ class FileSystemUtils():
     def get_filename_without_extension_or_final_folder(fullpath_or_full_filename):
         return os.path.splitext(os.path.basename(fullpath_or_full_filename))[0]
 
+    # Aliases
+    get_filename_without_extension = get_filename_without_extension_or_final_folder
+    get_path_last_folder = get_filename_without_extension_or_final_folder
+
     @staticmethod
-    def get_images_from_dir(self, path):
+    def get_images_from_dir(path_or_glob=None):
+        if not path_or_glob:
+            return []
+
+        if glob.has_magic(path_or_glob):
+            return sorted(glob.glob(path_or_glob))
+
         extensions = ('*.jpg', '*.jpeg', '*.png', '*.tif', '*.tiff')
         images = []
         for ext in extensions:
-            images.extend(glob.glob(os.path.join(path, ext)))
+            images.extend(glob.glob(os.path.join(path_or_glob, ext)))
+
         return sorted(images)
 
     @staticmethod
