@@ -19,6 +19,9 @@
     - Join/create PTO
     - Add patch image to project button: place in right place
     - Rotate grid ()
+    - Volver al menu
+    - Salir
+    - Stitcher view
 - P1
     - Open existing project
     - Back to main menu
@@ -31,6 +34,7 @@
         - All (that arent rotated already) or pick which ones
 - P3
     - Drag and drop joints generator
+    - Log errors
 
 
 ## Postcard view
@@ -44,6 +48,7 @@
     - Enable scan button only after previous task finishes.
     - Split saves into folders depending prefix
     - Catch scanner error
+    - If code folder not created, create it
     - Preview scan
     - Checkbox "Guardar posición"
         - Acts as save, turns off on manual index change
@@ -53,6 +58,7 @@
     - Image viewer: Left click - Zoom out
         - Add quick rotate and save
     - Skip A side
+    - Check path name if matches code, if not create folder
 - P1
     - Edit scan > Parallel to scan program (crop while scanning > Go back and forth between scans?)
         - Crop

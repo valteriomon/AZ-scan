@@ -1,6 +1,7 @@
 import argparse
 import os
 from core.constants import APP_TITLE
+from core.styles import *
 from core.postcard_view import PostcardView
 from core.map_view import MapView
 import tkinter as tk
@@ -8,11 +9,9 @@ from tkinter import ttk
 from tkinter import font
 from dotenv import load_dotenv
 
-BIG_FONT = ("Arial", 16)
-# dark_mode = True  # Global flag
-# style = None       # Global style object
+style = None       # Global style object
 
-def main_menu(root):
+def startup_window(root):
     # Clear the root window
     for widget in root.winfo_children():
         widget.destroy()
@@ -46,39 +45,6 @@ def main_menu(root):
     root.bind("<p>", lambda event: launch_app(root, PostcardView))
     root.bind("<P>", lambda event: launch_app(root, PostcardView))
 
-    # apply_theme()
-
-# def apply_theme():
-#     global style, dark_mode
-#     if not style:
-#         style = ttk.Style()
-
-#     if dark_mode:
-#         root_bg = "#2e2e2e"
-#         fg = "#ffffff"
-#         button_bg = "#444444"
-#     else:
-#         root_bg = "#f0f0f0"
-#         fg = "#000000"
-#         button_bg = "#e0e0e0"
-
-#     style.configure("TFrame", background=root_bg)
-#     style.configure("TLabel", background=root_bg, foreground=fg)
-    # style.configure("TButton", background=button_bg, foreground=fg)
-    # style.configure("Big.TButton", font=BIG_FONT, padding=10, background=button_bg, foreground=fg)
-
-# def toggle_dark_mode():
-#     global dark_mode
-#     dark_mode = not dark_mode
-#     apply_theme()
-
-# def setup_menu(root):
-#     menubar = tk.Menu(root)
-#     view_menu = tk.Menu(menubar, tearoff=0)
-#     view_menu.add_command(label="Cambiar tema", command=toggle_dark_mode)
-#     menubar.add_cascade(label="Opciones", menu=view_menu)
-#     root.config(menu=menubar)
-
 def launch_app(root, AppClass):
     # Clear the window
     for widget in root.winfo_children():
@@ -89,6 +55,7 @@ def launch_app(root, AppClass):
     root.unbind("<M>")
     root.unbind("<p>")
     root.unbind("<P>")
+    root.resizable(True, True)
 
     if AppClass == PostcardView:
         pass
@@ -96,13 +63,11 @@ def launch_app(root, AppClass):
         pass
 
     root.geometry("")
-    AppClass(root, go_back_callback=lambda: main_menu(root))
+    AppClass(root, go_back_callback=lambda: startup_window(root))
 
     if os.getenv('ENVIRONMENT') == 'dev':
         geom = os.getenv('TKINTER_GEOMETRY', '')
         root.geometry(geom)
-
-    # apply_theme()
 
 def main():
     # Load the main .env file
@@ -117,37 +82,49 @@ def main():
     # Determine which environment to use
     # If an argument is passed, use it. Otherwise, use the ENVIRONMENT variable from .env
     env = args.env if args.env else os.getenv('ENVIRONMENT', 'dev')
-
-    # Load the appropriate .env file based on the environment argument
     env_file = f".env.{env}"
     load_dotenv(dotenv_path=env_file, override=True)
 
     root = tk.Tk()
     root.geometry("400x300")
-    root.minsize(400, 300)
+    root.resizable(False, False)
     root.title(APP_TITLE)
     root.iconbitmap("assets/images/logo32.ico")
+
     root.bind("<Escape>", lambda event: root.quit())
 
     # # Set a global default font
-    # default_font = font.nametofont("TkDefaultFont")
-    # default_font.configure(family="Segoe UI", size=12)
+    default_font = font.nametofont("TkDefaultFont")
+    default_font.configure(family="Segoe UI", size=11)
+    default_font = font.nametofont("TkTextFont")
+    default_font.configure(family="Segoe UI", size=11)
+
+
+    # Set global default font for all ttk widgets
+    style = ttk.Style()
+    style.configure('.', font=("Segoe UI", 11))
+    style.configure("Big.TRadiobutton", font=("Segoe UI", 11))
+    style.configure("Zigzag.TButton", font=("Segoe UI", 18), padding=5)
+    # style.configure('my.TMenubutton', font=('Segoe UI', 16))
 
     # # Optional: Configure other default fonts too
-    # font.nametofont("TkTextFont").configure(family="Segoe UI", size=12)
-    # font.nametofont("TkFixedFont").configure(family="Segoe UI", size=12)
-    # font.nametofont("TkMenuFont").configure(family="Segoe UI", size=12)
+    # font.nametofont("TkTextFont").configure(family="Segoe UI", size=11)
+    # font.nametofont("TkFixedFont").configure(family="Segoe UI", size=11)
+    # font.nametofont("TkMenuFont").configure(family="Segoe UI", size=11)
 
-    style = ttk.Style()
+
+    # style = ttk.Style()
     style.configure("Big.TButton", font=BIG_FONT, padding=10)
+    style.configure("TEntry", font=("Segoe UI", 11))
+
     # style.configure("TFrame", background="#000000")
     if args.view == "map":
         launch_app(root, MapView)
     elif args.view == "postcard":
         launch_app(root, PostcardView)
     else:
-        main_menu(root)
-    # setup_menu(root)
+        startup_window(root)
+
     root.mainloop()
 
 if __name__ == "__main__":

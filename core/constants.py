@@ -1,6 +1,7 @@
 APP_TITLE = "AZ-scan - Escáner de Archivos"
 POSTCARD_VIEW_TITLE = "Postales"
-MAPS_VIEW_TITLE = "Postales"
+MAPS_VIEW_TITLE = "Mapas"
+VIEWER_VIEW_TITLE = "Visor"
 
 DEFAULT_STATE = {
     "prefixes": [
@@ -19,5 +20,11 @@ DEFAULT_STATE = {
             "dpi": 600,
             "filetype": "png"
         }
+    }
+}
+
+TKINTER_STYLES = {
+    "BIG_FONT": {
+        "font": ("Segoe UI", 12, "bold")
     }
 }

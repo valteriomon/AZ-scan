@@ -29,14 +29,14 @@ class AutoCrop:
 
 
 def show(img, leave=False, winname="img", wait_time=0):
-    scale = 0.3
+    scale = 0.2
     disp_img = cv.resize(img, None, fx=scale, fy=scale)
     cv.imshow(winname, disp_img)
     cv.waitKey(wait_time)
     if leave:
         exit()
 
-original_image_0 = cv.imdecode(np.fromfile("files/imageC.png", dtype=np.uint8), cv.IMREAD_UNCHANGED)
+original_image_0 = cv.imdecode(np.fromfile("files/scan.png", dtype=np.uint8), cv.IMREAD_UNCHANGED)
 original_image_0 = cv.cvtColor(original_image_0, cv.COLOR_BGR2RGB)
 
 #COLOR - Colorspace

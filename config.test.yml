@@ -1,6 +1,6 @@
 prefixes:
 - code: TBD
-  last_index: '37'
+  last_index: '40'
 - code: 01_P-PO
   last_index: 6
 - code: 02_P-PPA
@@ -18,7 +18,7 @@ prefixes:
 last_scan:
   prefix: TBD
   folder: D:\Desktop
-  filename: TBD_37_A
+  filename: TBD_40_A
 options:
   scanner:
     naps2_path: C:\Program Files\NAPS2\NAPS2.Console.exe

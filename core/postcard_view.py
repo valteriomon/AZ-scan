@@ -1,8 +1,8 @@
 from .constants import APP_TITLE, POSTCARD_VIEW_TITLE
 from .app_state import AppState
-from .image_viewer  import ImageViewer
-from core.console import Console
-from core.custom_error import FileAlreadyExistsError
+from .image_viewer  import ImageViewer, EditorImageViewer
+from .console import Console
+from .custom_error import FileAlreadyExistsError
 from pathlib import Path
 import os
 import threading
@@ -73,6 +73,7 @@ class PostcardView:
         # Prefix dropdown + entry
         ttk.Label(row_2, text="Código:", anchor="w").grid(row=0, column=0, padx=5, pady=0)
         self.prefix_dropdown = ttk.OptionMenu(row_2, self.prefix, self.prefix.get(), *self.prefix_list)
+        self.prefix_dropdown["menu"].configure(font=("Arial",16))
         self.prefix_dropdown.grid(row=0, column=1, padx=5, pady=5)
         self.prefix_dropdown.config(width=14)
         self.prefix_entry = ttk.Entry(row_2, textvariable=self.prefix, width=25)
@@ -145,7 +146,7 @@ class PostcardView:
         self.status_label = tk.Label(row_99, text="", anchor="w", bg="#dfe6e9", fg="#2d3436")
         self.status_label.grid(row=0, column=0, sticky="w", padx=5, pady=2)
 
-        menu_link = tk.Label(row_99, text="Menú", fg="blue", bg="#dfe6e9", cursor="hand2", font=("Arial", 10, "underline"))
+        menu_link = tk.Label(row_99, text="Menú", fg="blue", bg="#dfe6e9", cursor="hand2")
         menu_link.grid(row=0, column=1, sticky="e", padx=5, pady=2)
         menu_link.bind("<Button-1>", lambda e: self.on_back())
 
@@ -214,7 +215,7 @@ class PostcardView:
 
 
             image_filename = os.path.abspath(next_file)
-            viewer = ImageViewer(self.row_5, image_filename)
+            viewer = EditorImageViewer(self.row_5, image_filename)
             # viewer.pack(fill=tk.BOTH, expand=True)
             self.viewers.append(viewer)
             self.show_viewer(len(self.viewers) - 1)

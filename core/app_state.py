@@ -1,8 +1,8 @@
 import os
 import copy
 from pathlib import Path
-from config import Config
-import utils as utils
+from core.config import Config
+import core.utils as utils
 
 class AppState:
     def __init__(self):

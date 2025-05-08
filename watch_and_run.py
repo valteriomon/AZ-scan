@@ -4,11 +4,11 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import time
 import os
-
-SCRIPT_TO_RUN = "main.py"
+import argparse
 
 class ReloadHandler(FileSystemEventHandler):
-    def __init__(self, args):
+    def __init__(self, script, args):
+        self.script = script
         self.args = args
         self.process = None
         self.start_process()
@@ -16,7 +16,12 @@ class ReloadHandler(FileSystemEventHandler):
     def start_process(self):
         if self.process:
             self.process.kill()
-        command = [sys.executable, SCRIPT_TO_RUN] + self.args
+        if self.script.endswith(".py"):
+            module = []
+        else:
+            module = ["-m"]
+
+        command = [sys.executable] +  module + [self.script] + self.args
         print(f"▶️  Running: {' '.join(command)}")
         self.process = subprocess.Popen(command)
 
@@ -26,10 +31,14 @@ class ReloadHandler(FileSystemEventHandler):
             self.start_process()
 
 if __name__ == "__main__":
-    script_args = sys.argv[1:]  # Get args passed to this wrapper script
+    parser = argparse.ArgumentParser(description="Simple responsive image viewer.")
+    parser.add_argument("script", help="Path to the script file.")
+    parser.add_argument("additional_args", nargs=argparse.REMAINDER, help="Additional arguments for the script.")
+    args = parser.parse_args()
 
-    path = os.path.dirname(os.path.abspath(SCRIPT_TO_RUN))
-    event_handler = ReloadHandler(script_args)
+    path = os.path.dirname(os.path.abspath(args.script))
+
+    event_handler = ReloadHandler(args.script, args.additional_args)
     observer = Observer()
     observer.schedule(event_handler, path=path, recursive=True)
     observer.start()

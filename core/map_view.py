@@ -1,17 +1,17 @@
-from .constants import APP_TITLE, MAPS_VIEW_TITLE
-from .image_viewer  import ImageViewer
-from .console import Console
-import .utils as utils
+# TODO:
+
+
+import os, threading
+from core.constants import APP_TITLE, MAPS_VIEW_TITLE
+from core.image_viewer  import ImageViewer
+from core.console import Console
+import core.utils as utils
 from core.custom_error import FileAlreadyExistsError
 from enum import Enum
-import os
-import threading
 import tkinter as tk
-from tkinter import ttk
-from tkinter import filedialog
-from tkinter import messagebox
-from PIL import Image, ImageTk
 import tkinter.font as tkfont
+from tkinter import ttk, messagebox, filedialog
+from PIL import Image, ImageTk
 
 class ButtonType(Enum):
     START = "start"
@@ -24,12 +24,12 @@ class MapView:
         self.go_back_callback = go_back_callback
         self.root.title(f"{APP_TITLE} - {MAPS_VIEW_TITLE}")
 
-        self.min_width = 400
-        self.min_height = 300
+        self.min_width = 600
+        self.min_height = 400
         self.root.geometry(f"{self.min_width}x{self.min_height}")
         self.root.minsize(self.min_width, self.min_height)
 
-        self._setup_styles()
+        # self._setup_styles()
 
         self._build_menu()
 
@@ -38,9 +38,35 @@ class MapView:
 
         self._build_top_frame()
 
-        self.canvas = tk.Canvas(self.wrapper)
-        self.canvas.pack(in_=self.wrapper, fill="both", expand=True)
-        self.scrollbar = ttk.Scrollbar(self.wrapper, orient=tk.VERTICAL, command=self.canvas.yview)
+        self.container_frame = ttk.Frame(self.wrapper)
+        self.container_frame.pack(fill="x", expand=True)
+
+        self.container_frame.grid_rowconfigure(0, weight=1)
+        self.container_frame.grid_rowconfigure(2, weight=1)
+        self.container_frame.grid_columnconfigure(0, weight=1)
+        self.container_frame.grid_columnconfigure(2, weight=1)
+
+        self.reset()
+        self.button_pixel_size = (200, 200)
+        self.grid = []
+        self.rows = 0
+        self.cols = 0
+        self.buttons = {}
+        self.image_cache = {}
+
+
+        self._init_buttons()
+        self.render_buttons()
+
+
+        # self._load_images()
+    def create_things(self):
+        for widget in self.container_frame.winfo_children():
+            widget.destroy()
+
+        self.canvas = tk.Canvas(self.container_frame, bd=0, highlightthickness=0)
+        self.canvas.pack(in_=self.container_frame, fill="both", expand=True)
+        self.scrollbar = ttk.Scrollbar(self.container_frame, orient=tk.VERTICAL, command=self.canvas.yview)
         self.scrollbar.pack(side="right", fill=tk.Y)
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
 
@@ -59,17 +85,6 @@ class MapView:
         self.content_frame = ttk.Frame(self.main_frame, padding=0)
         self.content_frame.grid(row=1, column=1, sticky="nsew")
 
-        self.reset()
-        self.button_pixel_size = (200, 200)
-        self.grid = []
-        self.rows = 0
-        self.cols = 0
-        self.buttons = {}
-        self.image_cache = {}
-
-
-        self._init_buttons()
-        self.render_buttons()
         self._center_content()
         self.canvas.update_idletasks()
 
@@ -77,11 +92,10 @@ class MapView:
         self._last_geometry = ""
         self._poll_for_resize()
 
-        # self._load_images()
 
     def _setup_styles(self):
         style = ttk.Style()
-        style.configure("Zigzag.TButton", font=("Helvetica", 18), padding=5)
+
 
     def _build_menu(self):
         menu_bar = tk.Menu(self.root, bg="#2e2e2e")
@@ -230,21 +244,32 @@ class MapView:
         }
 
     def render_buttons(self):
+        # button = ttk.Button(
+        #     self.container_frame,
+        #     text="Comenzar",
+        #     command=lambda: (self._on_start_clicked()),
+        #     style="Big.TButton",
+        #     state="disabled"
+        # )
+        # button.grid(row=1, column=1, sticky="nsew")
+        # # button.pack(fill="both", expand=True)
+        # return
         for key, value in self.buttons.items():
             display = value.get("display", False)
             if display:
                 if value["button"] is None:
                     value["fn"]()
-                if display == "right":
-                    self.buttons[key]["button"].grid(row=self.rows - 1, column=len(self.grid[-1]), padx=2, pady=2)
-                elif display == "left":
-                    col = next((i for i, x in enumerate(self.grid[-1]) if x is not None), 0) - 1
-                    self.buttons[key]["button"].grid(row=self.rows - 1, column=col, padx=2, pady=2)
-                else:
-                    if self.rows % 2:
-                        self.buttons[key]["button"].grid(row=self.rows, column=self.cols - 1, padx=2, pady=2)
+                if key is not ButtonType.START:
+                    if display == "right":
+                        self.buttons[key]["button"].grid(row=self.rows - 1, column=len(self.grid[-1]), padx=2, pady=2)
+                    elif display == "left":
+                        col = next((i for i, x in enumerate(self.grid[-1]) if x is not None), 0) - 1
+                        self.buttons[key]["button"].grid(row=self.rows - 1, column=col, padx=2, pady=2)
                     else:
-                        self.buttons[key]["button"].grid(row=self.rows, column=0, padx=2, pady=2)
+                        if self.rows % 2:
+                            self.buttons[key]["button"].grid(row=self.rows, column=self.cols - 1, padx=2, pady=2)
+                        else:
+                            self.buttons[key]["button"].grid(row=self.rows, column=0, padx=2, pady=2)
             else:
                 self._destroy_button(key)
 
@@ -255,14 +280,17 @@ class MapView:
             self.buttons[key]["button"] = None
 
     def _render_start_button(self):
+        # self.root.resizable(False, False)
+        # return
         button = ttk.Button(
-            self.content_frame,
+            self.container_frame,
             text="Comenzar",
             command=lambda: (self._on_start_clicked()),
-            style="Zigzag.TButton",
+            style="Big.TButton",
             state="disabled"
         )
-        button.grid(row=0, column=0)
+        # button.grid(row=0, column=0)
+        button.grid(row=1, column=1, sticky="nsew")
         self.buttons[ButtonType.START]["button"] = button
 
     def _update_start_button_state(self):
@@ -274,6 +302,7 @@ class MapView:
     def _on_start_clicked(self):
         self.map_code_entry.config(state="disabled")
         self.scan(0, 0)
+
         # self.add_cell()
 
     def _render_next_col_button(self):
@@ -294,7 +323,8 @@ class MapView:
         def do_scan():
 
             try:
-                Console().scan(filename)
+                # Console().scan(filename)
+                pass
             except FileAlreadyExistsError as e:
                 # self.root.after(0, lambda: self.scan_button.config(state="normal"))
                 # self.root.after(0, lambda: self.status_label.config(text=""))
@@ -309,6 +339,7 @@ class MapView:
             # self.state.prefix = self.prefix.get()
             # self.state.folder = self.folder.get()
             # self.state.save_config()
+            self.create_things()
 
             self.root.after(0, lambda: (
                 self._load_images(filename),

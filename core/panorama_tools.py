@@ -1,27 +1,42 @@
-import argparse
-import subprocess
-import os
-import glob
-import sys
-import string
-import tempfile
-from console import Console
+# TODO:
+# - Allow extra scans not in the grid (used to patch weak connections).
+#      - Set position in grid.
+# - Allow extra passes of cpfind in diagonal neighbors.
+# - Run cpfind in rows and columns.
+# - Monitor scan folder for sequential stitch.
+# - Set rotation (roll).
+# - Linear match + prealigned method.
+# - Clean pto file.
+# - hugin_executor --assistant
+
+import argparse, os, sys, string, re, tempfile, glob
+from core.console import Console, PathConverter
 import core.utils as utils
 from core.utils import ImageUtils, FileSystemUtils
 
 class ImageStitcher:
     def __init__(self, project_name, images=None, debug=False):
+        self.project_name = project_name or utils.current_unix_timestamp()
         self.pto_tools = PtoTools(project_name, debug=debug)
         self.images = images
 
+    def empty_pto(self):
+        pass
+
+    def hugin_assistant(self):
+        pass
+
+    def hugin_stitching(self):
+        pass
+
     """
-    Original method described here: https://github.com/mpetroff/stitch-scanned-images
+    Original steps described here: https://github.com/mpetroff/stitch-scanned-images
     Runs on a finished set of images.
     Searches control points between all images.
     Slow on large maps and can lead to a bad result in maps with a lot of big similar sections (like sea borders with very little detail).
     """
-    def method_petroff(self, stitch=False):
-        self.pto_tools.pto_gen(self.images)
+    def strategy_petroff(self, fov=10, stitch=False):
+        self.pto_tools.pto_gen(self.images, args=[f"--fov={fov}"] if fov else [])
 
         # Find control points
         # Analyze Images, find matches, find matches for overlapping images...
@@ -58,8 +73,16 @@ class ImageStitcher:
     Searches control points in sets of 4 bordering images.
     Creates a pto file for each set, runs cpfind, then merges the pto files together.
     """
-    def method_quadruplet(self, stitch=False):
+    def strategy_quadruplet(self, fov=5, stitch=False):
+        # GridSets.build_matrix_from_cells()
+        # , args=[f"--fov{fov}"] if fov else []
+        filenames = self.get_plain_filenames()
+        # grid of files
+        # A1 to coordinate
+        # coordinate to file
+
         (grid, file_grid) = self.build_grid(self.images)
+        grid = GridSets.build_matrix_from_cells(filenames)
         quadruplets = GridSets.quadruplets(grid)
         for quadruple in quadruplets:
 
@@ -89,95 +112,82 @@ class ImageStitcher:
     Runs on a finished set of images.
     Repositions the images yaw and pitch and runs cpfind with --prealigned option.
     """
-    def method_yaw_and_pitch_positioning(self, stitch=False):
-    #     # pto_gen fov=5?
-    #     def generate_data_matrix(self, folder_path, base_value=1.0, multiplier=5, offset=-1):
+    def strategy_prealigned(self, fov=5, stitch=False):
+        # TODO: Could be simplified a lot:
+        # Iterate rows and set a pitch based on length.
+        # Iterate columns and set a yaw based on length.
 
-    #         def find_center(self, cells):
-    #             rows = sorted(set(r for r, _ in cells))
-    #             cols = sorted(set(c for _, c in cells))
+        def generate_yaw_and_pitch_matrix(filenames, base_value=1.0, multiplier=5, offset=-1):
 
-    #             # Find the single middle row/col if odd, or two if even
-    #             if len(rows) % 2 == 1:
-    #                 mid_rows = [rows[len(rows)//2]]
-    #             else:
-    #                 mid_rows = rows[len(rows)//2 - 1:len(rows)//2 + 1]
+            def find_center(cells):
+                rows = sorted(set(r for r, _ in cells))
+                cols = sorted(set(c for _, c in cells))
 
-    #             if len(cols) % 2 == 1:
-    #                 mid_cols = [cols[len(cols)//2]]
-    #             else:
-    #                 mid_cols = cols[len(cols)//2 - 1:len(cols)//2 + 1]
+                if len(rows) % 2 == 1:
+                    mid_rows = [rows[len(rows)//2]]
+                else:
+                    mid_rows = rows[len(rows)//2 - 1:len(rows)//2 + 1]
 
-    #             return {(r, c) for r in mid_rows for c in mid_cols if (r, c) in cells}
+                if len(cols) % 2 == 1:
+                    mid_cols = [cols[len(cols)//2]]
+                else:
+                    mid_cols = cols[len(cols)//2 - 1:len(cols)//2 + 1]
 
-    #         # Filter for files matching the letter-number format (e.g., A1.jpg)
-    #         filenames = [
-    #             f for f in os.listdir(folder_path)
-    #             if os.path.isfile(os.path.join(folder_path, f)) and f[0].isalpha() and f[1].isdigit()
-    #         ]
+                return {(r, c) for r in mid_rows for c in mid_cols if (r, c) in cells}
 
-    #         def parse_filename(name):
-    #             """Parses a name like 'A1.jpg' or 'B2.png' -> (row, col)"""
-    #             base = os.path.splitext(name)[0]
-    #             row_letter = ''.join(filter(str.isalpha, base))
-    #             col_number = ''.join(filter(str.isdigit, base))
-    #             return (
-    #                 string.ascii_uppercase.index(row_letter.upper()),
-    #                 int(col_number) - 1
-    #             )
+            positions = {}
+            for filename in filenames:
+                row_letter = ''.join(filter(str.isalpha, filename)).upper()
+                col_number = ''.join(filter(str.isdigit, filename))
+                pos = (
+                    string.ascii_uppercase.index(row_letter),
+                    int(col_number) - 1
+                )
+                positions[pos] = filename
 
-    #         positions = {}
-    #         for fname in filenames:
-    #             pos = parse_filename(fname)
-    #             positions[pos] = fname
+            coords = list(positions.keys())
+            center_cells = find_center(coords)
 
-    #         coords = list(positions.keys())
-    #         center_cells = find_center(coords)
+            # Compute average center row and column for yaw/pitch reference
+            avg_center_row = sum(r for r, _ in center_cells) / len(center_cells)
+            avg_center_col = sum(c for _, c in center_cells) / len(center_cells)
 
-    #         # Compute average center row and column for yaw/pitch reference
-    #         avg_center_row = sum(r for r, _ in center_cells) / len(center_cells)
-    #         avg_center_col = sum(c for _, c in center_cells) / len(center_cells)
+            values = {}
+            for pos in coords:
+                r, c = pos
+                min_dist = min(abs(r - cr) + abs(c - cc) for cr, cc in center_cells)
+                values[pos] = base_value * (multiplier ** min_dist) + offset
 
-    #         values = {}
-    #         for pos in coords:
-    #             r, c = pos
-    #             min_dist = min(abs(r - cr) + abs(c - cc) for cr, cc in center_cells)
-    #             values[pos] = base_value * (multiplier ** min_dist) + offset
+            max_row = max(r for r, _ in coords)
+            max_col = max(c for _, c in coords)
+            matrix = [['' for _ in range(max_col + 1)] for _ in range(max_row + 1)]
 
-    #         max_row = max(r for r, _ in coords)
-    #         max_col = max(c for _, c in coords)
-    #         matrix = [['' for _ in range(max_col + 1)] for _ in range(max_row + 1)]
+            for (r, c), val in values.items():
+                fname = positions[(r, c)]
+                # orientation_degrees = ImageUtils.get_rotation_degrees(os.path.join(folder_path, fname))
 
-    #         for (r, c), val in values.items():
-    #             fname = positions[(r, c)]
-    #             orientation_degrees = ImageUtils.get_rotation_degrees(os.path.join(folder_path, fname))
+                yaw = (c - avg_center_col) * multiplier   # horizontal offset scaled
+                pitch = (avg_center_row - r) * multiplier # vertical offset scaled
 
-    #             yaw = (c - avg_center_col) * multiplier   # horizontal offset scaled
-    #             pitch = (avg_center_row - r) * multiplier # vertical offset scaled
+                # Include yaw and pitch in the matrix cell
+                matrix[r][c] = (f"{val:.2f}", fname, 1, yaw, pitch)
 
-    #             # Include yaw and pitch in the matrix cell
-    #             matrix[r][c] = (f"{val:.2f}", fname, orientation_degrees, yaw, pitch)
+            return matrix, values
 
-    #         return matrix, values
+        matrix, _ = generate_yaw_and_pitch_matrix(self.get_plain_filenames())
+        pto_file = self.pto_tools.pto_gen(self.images, args=[f"--fov={fov}"] if fov else [])
 
-    #     def apply_yaw_pitch_to_pto(pto_file, matrix):
-    #         temp_pto = pto_file + '.tmp'
+        temp_pto = f"{self.project_name}_pto.tmp"
+        index = 0
+        for row in matrix:
+            for cell in row:
+                if not cell:
+                    continue
+                _, _, roll, yaw, pitch = cell
+                PtoTools.pto_var(pto_file, args=["--set", f"y{index}={yaw},p{index}={pitch},r{index}={roll}"])
+                # os.replace(temp_pto, pto_file) # Overwrite original for next call
+                index += 1
 
-    #         index = 0
-    #         for row in matrix:
-    #             for cell in row:
-    #                 if not cell:
-    #                     continue
-    #                 # cell = (value, fname, orientation_degrees, yaw, pitch)
-    #                 _, _, roll, yaw, pitch = cell
-    #                 self.pto_tools.pto_var(["--set", f"y{index}={yaw},p{index}={pitch},r{index}={roll}"])
-    #                 # '-o', temp_pto,
-    #                 # Overwrite original for next call
-    #                 os.replace(temp_pto, pto_file)
-    #                 index += 1
-
-    #     matrix, _ = generate_data_matrix(folder)
-    #     apply_yaw_pitch_to_pto(ptoFile, matrix)
         self.pto_tools.cpfind([
             "--prealigned",
             "--sieve1size", 500,
@@ -196,12 +206,12 @@ class ImageStitcher:
             self.pto_tools.enblend()
 
     """
-    Runs while the images are being created.
+    Runs while the images are being created. Stitching done separately.
     Searches control points based on the last image added to the project, using only the direct neighbours.
     Creates a new partial pto file that is merged to the project pto file.
     """
-    def method_real_time_generation(self):
-        pass
+    def strategy_sequential(self, fov=5):
+        # , args=[f"--fov{fov}"] if fov else []
     #     os.makedirs(output_dir, exist_ok=True)
     #     pto_files = []
     #     for i, row in enumerate(rows):
@@ -226,12 +236,30 @@ class ImageStitcher:
     #     # Step 3: Merge all .pto files into a single project
     #     merged_pto = os.path.join(output_dir, 'merged.pto')
     #     subprocess.check_call(['pto_merge', '-o', merged_pto] + pto_files)
-    #     print(f"Merged project saved to {merged_pto}")
+        self.pto_tools.pto_var(["--opt", "r,TrX,TrY"])
+        self.pto_tools.cpclean(["-n", "1"])
+        self.pto_tools.cpclean()
+        self.pto_tools.autooptimiser(["-n"])
+        self.pto_tools.pano_modify(["-p", "0", "--fov=AUTO", "--canvas=AUTO", "--crop=AUTO"])
 
     """
     """
-    def build_grid(self):
-        pass
+    @staticmethod
+    def stitch(pto_file):
+        PtoTools.nona(pto_file)
+        PtoTools.enblend()
+
+    """
+    """
+    def get_plain_filenames(self):
+        filenames_with_ext = [os.path.basename(image_path) for image_path in self.images]
+        filenames = [os.path.splitext(filename)[0] for filename in filenames_with_ext]
+
+        if not GridSets.validate_array_items_pattern(filenames):
+            print("Failed validation:", filenames)
+            raise Exception("Images must be named in letter-number format (e.g., A1.jpg)")
+
+        return filenames
 
 # ***************************************************************** #
 # ***************************************************************** #
@@ -260,6 +288,9 @@ class PtoTools:
     @property
     def pto_file(self):
         return self._pto_file
+
+    def sanitize_image_input(self, input):
+        pass
 
     """
     > pto_gen
@@ -325,15 +356,17 @@ class PtoTools:
 
         if not input_pto_files:
             input_pto_files = glob.glob("*.pto")
-        Console.run([
+
+        # print(f"Running pto_merge with args:", args)
+        Console.wsl([
             "pto_merge",
             "-o", output_pto_file,
         ] + input_pto_files)
 
         return output_pto_file
 
-    def _pto_merge(self, output_pto_file=None, input_pto_files=[]):
-        return PtoTools.pto_merge()
+    def _pto_merge(self, input_pto_files, output_pto_file=None):
+        return PtoTools.pto_merge(input_pto_files)
 
     """
     > cpfind
@@ -379,10 +412,11 @@ class PtoTools:
             "-o", output_pto_file,
             pto_file
         ])
+        return output_pto_file
 
     def _cpfind(self, args=[]):
         output_pto_file = self._pto_file if not self._debug else f"{self._project_name}_cpfind.pto"
-        PtoTools.cpfind(self._pto_file, output_pto_file, args)
+        return PtoTools.cpfind(self._pto_file, output_pto_file, args)
 
     """
     > pto_var
@@ -442,10 +476,11 @@ class PtoTools:
             "-o", output_pto_file,
             pto_file
         ])
+        return output_pto_file
 
     def _pto_var(self, args=[]):
         output_pto_file = self._pto_file if not self._debug else f"{self._project_name}_pto_var.pto"
-        PtoTools.pto_var(self._pto_file, output_pto_file, args)
+        return PtoTools.pto_var(self._pto_file, output_pto_file, args)
 
     """
     > cpclean
@@ -469,10 +504,11 @@ class PtoTools:
             "-o", output_pto_file,
             pto_file
         ])
+        return output_pto_file
 
     def _cpclean(self, args=[]):
         output_pto_file = self._pto_file if not self._debug else f"{self._project_name}_cpclean.pto"
-        PtoTools.cpclean(self._pto_file, output_pto_file, args)
+        return PtoTools.cpclean(self._pto_file, output_pto_file, args)
 
     """
     > autooptimiser
@@ -493,10 +529,11 @@ class PtoTools:
             "-o", output_pto_file,
             pto_file
         ])
+        return output_pto_file
 
     def _autooptimiser(self, args=[]):
         output_pto_file = self._pto_file if not self._debug else f"{self._project_name}_autooptimiser.pto"
-        PtoTools.autooptimiser(self._pto_file, output_pto_file, args)
+        return PtoTools.autooptimiser(self._pto_file, output_pto_file, args)
 
     """
     > pano_modify
@@ -552,10 +589,11 @@ class PtoTools:
             "-o", output_pto_file,
             pto_file
         ])
+        return output_pto_file
 
     def _pano_modify(self, args=[]):
         output_pto_file = self._pto_file if not self._debug else f"{self._project_name}_pano_modify.pto"
-        PtoTools.pano_modify(self._pto_file, output_pto_file, args)
+        return PtoTools.pano_modify(self._pto_file, output_pto_file, args)
 
     """
     > nona
@@ -647,6 +685,9 @@ class PtoTools:
 
     @staticmethod
     def morph_images_to_fit_control_points(pto_file, input_files, tmp):
+        # Should be handled by Console class
+        import subprocess
+
         img_ctrl_pts = ''
         with open(pto_file) as input:
             for line in input:
@@ -733,15 +774,48 @@ class PtoTools:
                             Removes the specified mask(s)
     """
 
+    """
+    > pano_trafo
+    Transform images according to a pto file.
+    """
+
+    """
+    > pto_lensstack
+    Create a lensstack from a pto file.
+    """
+
+    """
+    > hugin_executor
+    Execute a hugin command.
+
+    Usage: hugin_executor [-h] [-a] [-s] [-t <num>] [-p <str>] [-u <str>] [--user-defined-assistant <str>] [-d] input.pto
+    -h, --help                            shows this help message
+    -a, --assistant                       execute assistant
+    -s, --stitching                       execute stitching with given project
+    -t, --threads=<num>                   number of used threads
+    -p, --prefix=<str>                    prefix used for stitching
+    -u, --user-defined-output=<str>       use user defined commands in given file
+    --user-defined-assistant=<str>        use user defined assistant commands in given file
+    -d, --dry-run                         only print commands
+    """
+
 # ***************************************************************** #
 # ***************************************************************** #
 # ***************************************************************** #
 
 class GridSets:
     # Returns specific sets given partial or full grids.
+    # @staticmethod
+    # def grid_has_no_empty_values(grid):
+    #     return all(all(cell not in (None, '', [], {}) for cell in row) for row in grid)
 
     @staticmethod
-    def _verify_grid_completeness(grid):
+    def validate_array_items_pattern(arr):
+        pattern = re.compile(r"^[A-Z]\d{1,2}$")
+        return all(isinstance(item, str) and pattern.match(item) for item in arr)
+
+    @staticmethod
+    def validate_grid_completeness(grid):
         if not grid or not all(isinstance(row, list) for row in grid):
             return False  # must be a list of lists
 
@@ -756,9 +830,40 @@ class GridSets:
                     raise ValueError("Grid cells don't follow the expected pattern of letters for rows, numbers for columns.")
         return True
 
+    """
+    Given an array like ['A1', 'B3', 'C2'], builds a matrix (list of lists)
+    with the appropriate size, inserting values at their correct positions
+    and filling missing positions with None.
+    """
+    @staticmethod
+    def build_matrix_from_cells(cells):
+        # Parse the cells into (row_index, col_index) tuples
+        parsed = []
+        for cell in cells:
+            if len(cell) < 2 or not cell[0].isalpha() or not cell[1:].isdigit():
+                raise ValueError(f"Invalid cell format: {cell}")
+            row_char = cell[0].upper()
+            col_num = int(cell[1:])
+            row_index = string.ascii_uppercase.index(row_char)
+            col_index = col_num - 1  # zero-based index
+            parsed.append((row_index, col_index, cell))
+
+        # Determine matrix size
+        max_row = max(r for r, _, _ in parsed)
+        max_col = max(c for _, c, _ in parsed)
+
+        # Create matrix filled with None
+        matrix = [[None for _ in range(max_col + 1)] for _ in range(max_row + 1)]
+
+        # Fill in known values
+        for r, c, val in parsed:
+            matrix[r][c] = val
+
+        return matrix
+
     @staticmethod
     def quadruplets(grid, use_alphabetical_rows=True):
-        GridSets._verify_grid_completeness(grid)
+        GridSets.validate_grid_completeness(grid)
         rows = len(grid)
         cols = len(grid[0])
 
@@ -776,7 +881,7 @@ class GridSets:
 
     @staticmethod
     def inverted_diagonal_couples(grid, use_alphabetical_rows=True):
-        GridSets._verify_grid_completeness(grid)
+        GridSets.validate_grid_completeness(grid)
         rows = len(grid)
         cols = len(grid[0])
 
@@ -857,47 +962,84 @@ class GridSets:
 # ***************************************************************** #
 # ***************************************************************** #
 
+class InputSanitizer:
+    def sanitize(self):
+        pass
+
+
+
+
+
+
 def main():
     parser = argparse.ArgumentParser(description="Large format image creation tools.")
 
-    parser.add_argument('input_files', metavar='N', nargs='*', help='Image files to be blended together.')
-    parser.add_argument('--input-dir', dest='input_dir', help='Directory containing images to use.')
-    parser.add_argument('-o', '--output', dest='output', default='output', help='Output name (default: output)')
-    parser.add_argument("tool", choices=["pto_gen"], help="Which tool to run")
+    parser.add_argument(
+        '-p', '--project',
+        dest='project',
+        default=None,
+        help='Project name (default: timestamp)'
+    )
+    parser.add_argument(
+        '-f', '--fov',
+        dest='fov',
+        default=None,
+        help='HFOV (default: determined by strategy)'
+    )
+    parser.add_argument(
+        '--stitch',
+        action='store_true',
+        help='Stitch images automatically.'
+    )
+    parser.add_argument(
+        '--debug',
+        action='store_true',
+        help='Enable debug mode.'
+    )
+    parser.add_argument(
+        "strategy",
+        choices=["petroff", "quadruplet", "prealigned", "sequential"],
+        help="Which stitching strategy to use."
+    )
+    parser.add_argument(
+        'input',
+        metavar='N',
+        nargs='*',
+        help='Input files (supports glob patterns) or a single folder path.'
+    )
 
     args = parser.parse_args()
 
-    input_files = []
-    if args.input_dir:
-        if not os.path.isdir(args.input_dir):
-            print(f"Error: '{args.input_dir}' is not a valid directory.", file=sys.stderr)
-            sys.exit(1)
-        # Collect all image files from the directory
-        for file in sorted(os.listdir(args.input_dir)):
-            full_path = os.path.join(args.input_dir, file)
-            if os.path.isfile(full_path) and file.lower().endswith(('.jpg', '.jpeg', '.png', '.tif', '.tiff')):
-                input_files.append(full_path)
-    elif args.input_files:
-        # Expand glob patterns
-        for pattern in args.input_files:
-            input_files += glob.glob(pattern)
+    input = []
+
+    if len(args.input) == 1 and os.path.isdir(args.input[0]):
+        # Single directory provided
+        input = args.input[0]
+        input_str = input
     else:
-        print("Error: You must specify either image files or --input-dir", file=sys.stderr)
-        sys.exit(1)
+        # One or more file globs provided
+        for pattern in args.input:
+            input += glob.glob(PathConverter.to_native_path(pattern))
+    if not input:
+        print("No input images found.")
+        return
 
-    if not input_files:
-        print("Error: No valid input images found.", file=sys.stderr)
-        sys.exit(1)
+    image_stitcher = ImageStitcher(args.project, input, debug=args.debug)
 
-    pto_file = args.output + '.pto'
-    output_dir = args.output_dir
+    kwargs = {}
+    if args.fov is not None:
+        kwargs['fov'] = args.fov
 
-    if args.tool == "pto_gen":
-        pto_tools = PtoTools()
-        pto_tools.pto_gen(input_files, fov=5, output_file=pto_file)
-        pto_tools.pto_var(pto_file, output_dir=output_dir)
-    else:
-        pass
+    if args.strategy == "petroff":
+        image_stitcher.strategy_petroff(stitch=args.stitch, **kwargs)
+    elif args.strategy == "quadruplet":
+        image_stitcher.strategy_quadruplet(stitch=args.stitch, **kwargs)
+    elif args.strategy == "prealigned":
+        image_stitcher.strategy_prealigned(stitch=args.stitch, **kwargs)
+    elif args.strategy == "sequential":
+        image_stitcher.strategy_sequential(**kwargs)
+    elif args.strategy == "stitch-only" and input_str:
+        image_stitcher.stitch(input_str)
 
 if __name__ == "__main__":
     main()

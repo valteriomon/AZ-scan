@@ -2,7 +2,6 @@ import os
 import glob
 import time
 import uuid
-import core.constants
 from PIL import Image
 from PIL.ExifTags import TAGS
 
@@ -12,7 +11,7 @@ def dict_key_has_value(dict, key, value):
     """
     return any(entry.get(key) == value for entry in dict)
 
-def alpha_converter(value, zero_based=False):
+def alpha_converter(value, zero_based=True):
     """
     Converts an integer to an alphabetical string, and vice versa, starting at 1 (A = 1).
     """
@@ -80,6 +79,10 @@ def current_unix_timestamp():
 class FileSystemUtils():
     def __init__(self, directory):
         self.directory = directory
+
+    @staticmethod
+    def get_filenames_from_list(filenames):
+        return [os.path.basename(filename) for filename in filenames]
 
     @staticmethod
     def get_filename_without_extension_or_final_folder(fullpath_or_full_filename):
