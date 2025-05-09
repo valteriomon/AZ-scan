@@ -1,11 +1,11 @@
-APP_TITLE = "AZ-scan - Escáner de Archivos"
+APP_TITLE = "AZ-scan - Escáner de Archivos - Fundación Azara"
 POSTCARD_VIEW_TITLE = "Postales"
 MAPS_VIEW_TITLE = "Mapas"
 VIEWER_VIEW_TITLE = "Visor"
 
 DEFAULT_STATE = {
     "prefixes": [
-        {"code": "TBD", "last_index": None}
+        {"code": "00_TBD", "last_index": None}
     ],
     "last_scan": {
         "prefix": None,

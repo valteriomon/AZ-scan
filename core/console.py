@@ -114,6 +114,17 @@ class Console:
         self.run(command)
         return True
 
+    @classmethod
+    def open_folder(cls, path):
+        if platform.system() == "Windows":
+            os.startfile(path)
+        elif platform.system() == "Darwin":
+            # macOS
+            subprocess.run(["open", path])
+        else:
+            # Linux
+            subprocess.run(["xdg-open", path])
+
     # Fred's ImageMagick multicrop through WSL
     # http://www.fmwconcepts.com/imagemagick/multicrop/index.php
     # def autocrop(self, path, full_filename):

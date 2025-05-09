@@ -23,7 +23,7 @@ class ImageStitcher:
     def empty_pto(self):
         pass
 
-    def hugin_assistant(self):
+    def hugin_alignment(self):
         pass
 
     def hugin_stitching(self):
@@ -290,6 +290,23 @@ class PtoTools:
         return self._pto_file
 
     def sanitize_image_input(self, input):
+        pass
+
+    """
+    > hugin_executor
+    Execute a hugin command.
+
+    Usage: hugin_executor [-h] [-a] [-s] [-t <num>] [-p <str>] [-u <str>] [--user-defined-assistant <str>] [-d] input.pto
+    -h, --help                            shows this help message
+    -a, --assistant                       execute assistant
+    -s, --stitching                       execute stitching with given project
+    -t, --threads=<num>                   number of used threads
+    -p, --prefix=<str>                    prefix used for stitching
+    -u, --user-defined-output=<str>       use user defined commands in given file
+    --user-defined-assistant=<str>        use user defined assistant commands in given file
+    -d, --dry-run                         only print commands
+    """
+    def hugin_executor(self, args=[]):
         pass
 
     """
@@ -782,21 +799,6 @@ class PtoTools:
     """
     > pto_lensstack
     Create a lensstack from a pto file.
-    """
-
-    """
-    > hugin_executor
-    Execute a hugin command.
-
-    Usage: hugin_executor [-h] [-a] [-s] [-t <num>] [-p <str>] [-u <str>] [--user-defined-assistant <str>] [-d] input.pto
-    -h, --help                            shows this help message
-    -a, --assistant                       execute assistant
-    -s, --stitching                       execute stitching with given project
-    -t, --threads=<num>                   number of used threads
-    -p, --prefix=<str>                    prefix used for stitching
-    -u, --user-defined-output=<str>       use user defined commands in given file
-    --user-defined-assistant=<str>        use user defined assistant commands in given file
-    -d, --dry-run                         only print commands
     """
 
 # ***************************************************************** #

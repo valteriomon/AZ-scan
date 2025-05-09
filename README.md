@@ -40,25 +40,27 @@
 ## Postcard view
 - P0
     - Add "repeat/remake last scan" button
+    - Preview scan
+    - If code folder not created, create it
+        - Check path name if matches code, if not create folder
+    - Delete last scan option
+    - Split saves into folders depending prefix
     - "Next" button?
         - Scan + Next instead of auto-update
             - Ask to delete previous scan
-    - Delete last scan option
+    - Skip B side
+    - Checkbox "Guardar posición"
+
+    - State not saving until you scan again, so "next" is last when you reopen
+
     - Enable scan button only if new and last scan are named differently (check last scan exists).
     - Enable scan button only after previous task finishes.
-    - Split saves into folders depending prefix
     - Catch scanner error
-    - If code folder not created, create it
-    - Preview scan
-    - Checkbox "Guardar posición"
         - Acts as save, turns off on manual index change
-    - State not saving until you scan again, so "next" is last when you reopen
     - Right click option, open editor
     - Split in-viewer options into a new class
     - Image viewer: Left click - Zoom out
         - Add quick rotate and save
-    - Skip A side
-    - Check path name if matches code, if not create folder
 - P1
     - Edit scan > Parallel to scan program (crop while scanning > Go back and forth between scans?)
         - Crop

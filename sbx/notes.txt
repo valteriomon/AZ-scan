@@ -1,3 +1,523 @@
+for file in sorted(os.listdir(args.input_dir)):
+    full_path = os.path.join(args.input_dir, file)
+    if os.path.isfile(full_path) and file.lower().endswith(('.jpg', '.jpeg', '.png', '.tif', '.tiff')):
+        input_files.append(full_path)
+
+
+add decorator to generate windows pto
+move file logic out of pto_gen
+check all filename basename extractions are done for win and linux paths
+    fix folder_path
+
+Command completed successfully.
+Running pto_var with args: []
+Running command: wsl pto_var -o ['--set', 'y0=-5.0,p0=7.5,r0=0'] None_pto.tmp
+pto_var: no variables to modify given
+Command failed with return code 1
+Output: None
+
+cache? cleanup
+
+
+
+set scanner in options
+
+# else:
+#     if event.delta > 0:
+#         self.rotate_at(90, event.x, event.y)  # Rotate clockwise
+#     else:
+#         self.rotate_at(-90, event.x, event.y)  # Rotate counter-clockwise
+
+    # def rotate(self, deg:float):
+    #     mat = np.eye(3)
+    #     mat[0, 0] = math.cos(math.pi * deg / 180)
+    #     mat[1, 0] = math.sin(math.pi * deg / 180)
+    #     mat[0, 1] = -mat[1, 0]
+    #     mat[1, 1] = mat[0, 0]
+
+    #     self.mat_affine = np.dot(mat, self.mat_affine)
+
+    # def rotate_at(self, deg:float, cx:float, cy:float):
+    #     self.translate(-cx, -cy)
+    #     self.rotate(deg)
+    #     self.translate(cx, cy)
+
+
+class EditorMode(tk.Frame):
+    def __init__(self, master, canvas, on_rotate_callback):
+        super().__init__(master)
+        self.canvas = canvas
+        self.on_rotate_callback = on_rotate_callback
+
+        self.rotate_button = tk.Button(self, text="Rotate", command=self.on_rotate)
+        self.rotate_button.pack(side=tk.LEFT)
+
+    def on_rotate(self):
+        self.on_rotate_callback()
+
+        # if self.editor_enabled:
+        #     self._create_editor_mode()
+
+
+    # def rotate_image(self, angle):
+    #     """Rotate image and refresh canvas"""
+    #     if self.pil_image:
+    #         self.pil_image = self.pil_image.rotate(90, expand=True)
+    #         self._draw_image(self.pil_image)
+
+    # def rotate_image(self, angle):
+    #     if self.pil_image:
+    #         if angle == 90 or angle == -90:
+    #             self.rotation_angle = (self.rotation_angle + angle) % 360  # Reset to 90-degree increments
+    #         else:
+    #             self.rotation_angle += angle
+
+    #         self.rotation_angle %= 360  # Ensure rotation stays within 0-360 degrees
+    #         # self.image_stack.append(self.image.copy())  # Save the previous state
+    #         self.pil_image = self.pil_image.rotate(self.rotation_angle, expand=True)  # Rotate the original image
+    #         self.update_display_image()
+    #         self.update_rotation_label()
+
+
+
+    # def _create_editor_mode(self):
+    #     """Creates and enables the editor mode, including a top bar."""
+    #     self.editor_mode_frame = tk.Frame(self)
+    #     self.editor_mode_frame.pack(side=tk.TOP, fill=tk.X)
+
+    #     # Create Editor buttons
+    #     self.editor_mode = EditorMode(self.editor_mode_frame, self.canvas, self.rotate_image)
+    #     self.editor_mode.pack(side=tk.LEFT)
+
+
+
+
+
+        # frame_editor_bar = tk.Frame(self)
+        # tk.Button(frame_editor_bar, text="⟲", command=lambda: self.rotate_image(90)).pack(side="left")   # Counterclockwise
+        # tk.Button(frame_editor_bar, text="⟳", command=lambda: self.rotate_image(-90)).pack(side="left")  # Clockwise
+
+    #     # self.label_image_infoa = tk.Label(frame_editorbar, anchor=tk.E, padx=5)
+    #     # self.label_image_infoa.pack(side=tk.RIGHT)
+        # frame_editor_bar.pack(side=tk.TOP, fill=tk.X)
+
+
+        if self.editor_enabled:
+            self._enable_image_editor(self.canvas)
+
+
+                def _enable_image_editor(self, canvas):
+        def launch_editor(filepath):
+            print(f"Launching editor for {filepath}")
+
+        def show_context_menu(event):
+            try:
+                self.context_menu.tk_popup(event.x_root, event.y_root)
+            finally:
+                self.context_menu.grab_release()
+
+        # Context menu
+        self.context_menu = tk.Menu(self.canvas, tearoff=0)
+        self.context_menu.add_command(label="Editar", command=lambda: launch_editor(self.filepath.get()))
+
+        canvas.bind("<Button-3>", show_context_menu)
+        canvas.bind("<Key-e>", lambda event: launch_editor(self.filepath.get()))
+        canvas.focus_set()
+
+
+
+
+SET MIN WINDOW WIDTH
+
+
+
+
+
+
+
+
+
+
+
+
+
+import os
+import tkinter as tk
+from PIL import Image, ImageTk
+import numpy as np
+import cv2
+from core.constants import APP_TITLE, VIEWER_VIEW_TITLE
+
+class ImageViewer(tk.Frame):
+
+    def __init__(self, master, filepath, status_bar_enabled=True, editor_enabled=True):
+        super().__init__(master)
+        self.filepath = tk.StringVar(value=filepath)
+        self.editor_enabled = editor_enabled
+        self.status_bar_enabled = status_bar_enabled or editor_enabled
+
+        self.is_main_window = isinstance(master, (tk.Tk, tk.Toplevel))
+        self.title = f"{APP_TITLE} - {VIEWER_VIEW_TITLE}"
+
+        if self.is_main_window:
+            master.geometry("800x600")
+            master.geometry("-1200+200")
+            master.title(self.title)
+            try:
+                master.iconbitmap("assets/images/logo32.ico")
+            except Exception:
+                pass
+
+        self.pil_image = None
+        self.cv_image = None  # OpenCV image
+        self.is_edit_mode = False  # Track edit mode state
+        self.hq_render_after_id = None
+
+        self._create_canvas()
+        self._reset_transform()
+
+        if self.status_bar_enabled:
+            self._create_status_bar()
+
+        if self.editor_enabled:
+            self._enable_image_editor(self.canvas)
+
+        self.after(100, self.set_image)
+
+        if self.is_main_window:
+            self.pack(expand=True, fill=tk.BOTH)
+            master.bind("<Configure>", self._on_resize)  # Bind to top-level ImageViewer.
+        else:
+            self.bind("<Configure>", self._on_resize)    # Bind to self when embedded.
+
+    def set_image(self, filepath=None):
+        if not filepath:
+            filepath = self.filepath.get()
+
+        self.pil_image = Image.open(filepath)
+        self.filepath.set(filepath)
+        self._zoom_fit(self.pil_image.width, self.pil_image.height)
+        self._draw_image(self.pil_image)
+
+        if self.is_main_window:
+            filename = os.path.basename(filepath)
+            self.master.title(f"{self.title} - {filename}")
+
+    def _on_resize(self, event):
+        if self.is_edit_mode and self.cv_image is not None:
+            self._zoom_fit(self.cv_image.shape[1], self.cv_image.shape[0])  # Use OpenCV's width and height
+        elif self.pil_image:
+            self._zoom_fit(self.pil_image.width, self.pil_image.height)
+        self._redraw_image()
+
+    def _create_canvas(self):
+        self.canvas = tk.Canvas(self, background="black", bd=0, highlightthickness=0)
+        self.canvas.pack(expand=True, fill=tk.BOTH)
+
+        # Bind to self.canvas for more consistent behavior across modes
+        bind_target = self.canvas
+
+        bind_target.bind("<Button-1>", self._mouse_down_left)
+        bind_target.bind("<B1-Motion>", self._mouse_move_left)
+        bind_target.bind("<Double-Button-1>", self._mouse_double_click_left)
+        bind_target.bind("<MouseWheel>", self._mouse_wheel)
+
+        # Escape key should still go to top-level window
+        if self.is_main_window:
+            self.master.bind("<Escape>", self._menu_quit_clicked)
+
+    def _create_status_bar(self):
+        frame_statusbar = tk.Frame(self)
+
+        self.label_filepath = tk.Label(frame_statusbar, anchor=tk.W, padx=5)
+        self.label_filepath.pack(side=tk.LEFT)
+
+        self.label_image_info = tk.Label(frame_statusbar, anchor=tk.E, padx=5)
+        self.label_image_info.pack(side=tk.RIGHT)
+
+        frame_statusbar.pack(side=tk.BOTTOM, fill=tk.X)
+
+        def update_status_bar(name=None, index=None, mode=None):
+            self.label_filepath["text"]     = os.path.abspath(self.filepath.get())
+            if self.is_edit_mode and self.cv_image is not None:
+                self.label_image_info["text"] = f"OpenCV : {self.cv_image.shape[1]} x {self.cv_image.shape[0]}"
+            else:
+                self.label_image_info["text"] = f"{self.pil_image.format} : {self.pil_image.width} x {self.pil_image.height} {self.pil_image.mode}"
+
+        self.filepath.trace_add("write", update_status_bar)
+
+    def _enable_image_editor(self, canvas):
+        def launch_editor(filepath):
+            print(f"Launching editor for {filepath}")
+            # Toggle edit mode
+            if self.is_edit_mode:
+                # Exit edit mode: Reload the Pillow image
+                self.is_edit_mode = False
+                self.cv_image = None
+                self.set_image(filepath)
+            else:
+                # Enter edit mode: Switch to OpenCV image
+                self.is_edit_mode = True
+                self.cv_image = cv2.imread(filepath)
+                self._zoom_fit(self.cv_image.shape[1], self.cv_image.shape[0])
+                self._draw_opencv_image(self.cv_image)
+
+        def show_context_menu(event):
+            try:
+                self.context_menu.tk_popup(event.x_root, event.y_root)
+            finally:
+                self.context_menu.grab_release()
+
+        # Context menu
+        self.context_menu = tk.Menu(self.canvas, tearoff=0)
+        self.context_menu.add_command(label="Editar", command=lambda: launch_editor(self.filepath.get()))
+        canvas.bind("<Button-3>", show_context_menu)
+        canvas.bind("<Key-e>", lambda event: launch_editor(self.filepath.get()))
+        canvas.focus_set()
+
+    """
+    Event handlers
+    """
+    def _menu_quit_clicked(self, event):
+        self.master.destroy()
+        return "break"
+
+    def _mouse_down_left(self, event):
+        self.__old_event = event
+
+    def _mouse_move_left(self, event):
+        if self.pil_image == None:
+            return
+        self._translate(event.x - self.__old_event.x, event.y - self.__old_event.y)
+        self._redraw_image()
+        self.__old_event = event
+
+    def _mouse_double_click_left(self, event):
+        if self.pil_image == None:
+            return
+        if self.zoom_level or not self.centered:
+            self._zoom_fit(self.pil_image.width, self.pil_image.height)
+            self._redraw_image()
+
+    def _mouse_wheel(self, event):
+        if self.pil_image is None:
+            return
+
+        if event.state != 9:
+            if event.delta > 0:
+                self.zoom_level += 1
+                self._scale_at(1.25, event.x, event.y)  # Zoom in
+            elif self.zoom_level > 0:
+                self._scale_at(0.8, event.x, event.y)  # Zoom out
+                self.zoom_level -= 1
+            elif self.zoom_level == 0 and not self.centered:
+                self._zoom_fit(self.pil_image.width, self.pil_image.height)
+            else:
+                return
+            self._redraw_image()
+
+    """
+    Transformations
+    """
+    def _reset_transform(self):
+        self.mat_affine = np.eye(3)
+
+    def _translate(self, offset_x, offset_y):
+        self.centered = False
+        mat = np.eye(3)
+        mat[0, 2] = float(offset_x)
+        mat[1, 2] = float(offset_y)
+        self.mat_affine = np.dot(mat, self.mat_affine)
+
+    def _scale(self, scale:float):
+        mat = np.eye(3)
+        mat[0, 0] = scale
+        mat[1, 1] = scale
+        self.mat_affine = np.dot(mat, self.mat_affine)
+
+    def _scale_at(self, scale:float, cx:float, cy:float):
+        self._translate(-cx, -cy)
+        self._scale(scale)
+        self._translate(cx, cy)
+
+    def _zoom_fit(self, image_width, image_height):
+        canvas_width = self.canvas.winfo_width()
+        canvas_height = self.canvas.winfo_height()
+
+        if (image_width * image_height <= 0) or (canvas_width * canvas_height <= 0):
+            return
+        self._reset_transform()
+
+        scale, offsetx, offsety = self._compute_scale_and_offset(canvas_width, canvas_height, image_width, image_height)
+
+        self._scale(scale)
+        self._translate(offsetx, offsety)
+
+        self.zoom_level = 0
+        self.centered = True
+
+    def _compute_scale_and_offset(self, canvas_width, canvas_height, image_width, image_height):
+        scale = 1.0
+        offsetx = 0.0
+        offsety = 0.0
+
+        if (canvas_width * image_height) > (image_width * canvas_height):
+            scale = canvas_height / image_height
+            offsetx = (canvas_width - image_width * scale) / 2
+        else:
+            scale = canvas_width / image_width
+            offsety = (canvas_height - image_height * scale) / 2
+
+        return scale, offsetx, offsety
+
+    def _draw_opencv_image(self, cv_image):
+        """Draw OpenCV image (in BGR) to the canvas."""
+        cv_image_rgb = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
+        pil_image = Image.fromarray(cv_image_rgb)
+        self._draw_image(pil_image)
+
+    def _draw_image(self, pil_image, resample=Image.NEAREST):
+        if pil_image is None:
+            return
+
+        self.pil_image = pil_image
+        canvas_width = self.canvas.winfo_width()
+        canvas_height = self.canvas.winfo_height()
+
+        mat_inv = np.linalg.inv(self.mat_affine)
+        affine_inv = (
+            mat_inv[0, 0], mat_inv[0, 1], mat_inv[0, 2],
+            mat_inv[1, 0], mat_inv[1, 1], mat_inv[1, 2]
+        )
+        dst = self.pil_image.transform(
+            (canvas_width, canvas_height),
+            Image.AFFINE,
+            affine_inv,
+            resample
+        )
+
+        im = ImageTk.PhotoImage(image=dst)
+        self.canvas.delete("all")  # Clear previous image
+        self.canvas.create_image(0, 0, anchor='nw', image=im)
+        self.image = im
+
+    def _redraw_image(self):
+        if self.pil_image is None:
+            return
+
+        # Fast redraw with NEAREST
+        self._draw_image(self.pil_image, resample=Image.NEAREST)
+
+        # Cancel any previously scheduled high-quality redraw
+        if self.hq_render_after_id:
+            self.after_cancel(self.hq_render_after_id)
+
+        # Schedule a high-quality redraw after 300 ms
+        self.hq_render_after_id = self.after(300, lambda: self._draw_image(self.pil_image, resample=Image.BICUBIC))
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Simple responsive image viewer.")
+    parser.add_argument("image", help="Path to the image file.")
+    args = parser.parse_args()
+
+    root = tk.Tk()
+    app = ImageViewer(master=root, filepath=args.image)
+
+    app.mainloop()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def toggle_dark_mode():
+    global dark_mode
+    dark_mode = not dark_mode
+    # apply_theme()
+
+def setup_menu(root):
+    menubar = tk.Menu(root)
+    view_menu = tk.Menu(menubar, tearoff=0)
+    view_menu.add_command(label="Cambiar tema", command=toggle_dark_mode)
+    menubar.add_cascade(label="Opciones", menu=view_menu)
+    root.config(menu=menubar)
+
+
+
+
+
+
+
+    def apply_theme():
+    global style, dark_mode
+    if not style:
+        style = ttk.Style()
+
+    if dark_mode:
+        root_bg = button_bg = "#dddddd"
+        fg = "#e8e8e8"
+    else:
+        root_bg = button_bg = "#f0f0f0"
+        fg = "green"
+
+    style.configure("TFrame", background=root_bg)
+    style.configure("TLabel", background=root_bg, foreground=fg)
+    style.configure("TButton", bg=button_bg, foreground=fg)
+    style.configure("Big.TButton", font=BIG_FONT, padding=10, background=button_bg, foreground=fg)
+    style.map("Big.TButton",
+        background=[("active", "green"), ("!active", "blue")],
+        foreground=[
+            ("active", "white"),
+            ("!active", "black"),
+            ("pressed", "black"),
+            ("!pressed", "black"),
+            ("active", "red")],
+        relief=[("pressed", "flat"), ("!pressed", "flat")]
+    )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         # answer = self.ask_yes_no("Delete", "Do you want to delete this file?")
         # if answer:
         #     print("User chose Yes")
