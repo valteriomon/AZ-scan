@@ -30,7 +30,7 @@ last_scan:
   folder: D:\Desktop
   filename: 00_TBDsv_15_A
 multi_scan:
-  folder: D:\Desktop:\Desktop:\Desktop:\Desktop:\Desktop:\Desktop:\Desktop
+  folder: D:\Desktop
 options:
   scanner:
     naps2_path: C:\Program Files\NAPS2\NAPS2.Console.exe

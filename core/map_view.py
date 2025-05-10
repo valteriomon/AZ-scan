@@ -1,5 +1,3 @@
-# TODO:
-
 import os, threading
 from pathlib import Path
 from core.constants import APP_TITLE, MAPS_VIEW_TITLE
@@ -16,6 +14,29 @@ import tkinter.font as tkfont
 from tkinter import ttk, messagebox, filedialog
 from PIL import Image, ImageTk
 
+# TODO
+# - Button enabling/disabling
+
+# - Status messaging (set "Scanning" in status bar and disable next scan buttons until completed)
+# - Image rotation
+# - Key binds
+# - Folder creation
+# - Actions, events... (left click menu: Open, Rescan)
+# - Project load
+# - Save scanned file with filename according to prefix code + matrix position
+#     - Create new folder with project code
+# - Re-scan specific matrix position
+#     - Warn if file exists will be overriden
+# - Catch scanner error
+# - Join/create PTO
+# - Add patch image to project button: place in right place
+# - Stitcher view
+# - Open existing project
+# - Rotate (90 degrees) scan and save
+# - Rotate all images at once
+# - All (that arent rotated already) or pick which ones
+# - Add help, shortcuts, info on how to use
+
 class ButtonType(Enum):
     START = "start"
     COL = "col"
@@ -30,20 +51,24 @@ class MapView:
         self.min_width = 600
         self.min_height = 400
         self.root.minsize(self.min_width, self.min_height)
+        self.scanning = False
 
         self.button_pixel_size = (200, 200)
-        self.grid = []
-        self.rows = 0
-        self.cols = 0
-        self.buttons = {}
-        self.image_cache = {}
 
         self._config = Config().load()
-        self._build_ui(root)
+        self._filetype = self._config.get("options", {}).get("scanner", {}).get("filetype", "png") or "png"
+
+        self._reset()
+
+    def _bind_keys(self):
+        self.root.bind("<Key-c>", lambda e: print("Lowercase c"))
+        self.root.bind("<Key-C>", lambda e: print("Uppercase C"))
+        self.root.bind("<Key-f>", lambda e: print("Lowercase f"))
+        self.root.bind("<Key-F>", lambda e: print("Uppercase F"))
 
     def _build_ui(self, root):
         def top_frame(frame):
-            frame.pack(fill="both", expand=False)
+            frame.pack(fill="both", expand=False, padx=40, pady=(10, 0))
 
             frame.columnconfigure(0, weight=1)
             frame.columnconfigure(1, weight=0)
@@ -53,22 +78,23 @@ class MapView:
             center_frame.grid(row=0, column=1)
 
             label_project_code = ttk.Label(center_frame, text="Código de proyecto:")
-            label_project_code.grid(row=0, column=0, padx=10, pady=5)
+            label_project_code.grid(row=0, column=0, padx=5, pady=5)
 
             self.project_code = tk.StringVar()
             self.project_code.trace_add("write", self._update_start_button_state)
+            self.project_code.trace_add("write", self._on_project_code_change)
 
-            self.entry_project_code = ttk.Entry(center_frame, textvariable=self.project_code)
-            self.entry_project_code.grid(row=0, column=1, padx=10, pady=5)
+            self.entry_project_code = ttk.Entry(center_frame, textvariable=self.project_code, width=10)
+            self.entry_project_code.grid(row=0, column=1, padx=(5, 30), pady=5)
 
             self.project_folder = tk.StringVar(value=self._get_project_folder())
             self.label_project_folder = ttk.Label(center_frame, textvariable=self.project_folder)
             self.label_project_folder.grid(row=0, column=2, padx=10, pady=5, sticky="ew")
 
-            self.button_project_folder = ttk.Button(center_frame, text="Elegir carpeta", command=lambda: (self._select_project_folder(), self._reset_min_size()))
+            self.button_project_folder = ttk.Button(center_frame, text="Elegir carpeta", command=lambda: (self._select_project_folder(), self._reset_min_size()), width=16, padding=1)
             self.button_project_folder.grid(row=0, column=3, padx=10, pady=5)
 
-            self.label_warning = ttk.Label(center_frame, text="Los campos no podrán modificarse una vez empezado el proyecto.", font=styles.FONT_DEFAULT_ITALIC)
+            self.label_warning = ttk.Label(center_frame, text="Los campos no podrán modificarse una vez empezado el proyecto.\nSe creará una carpeta con el código ingresado.", font=styles.FONT_DEFAULT_ITALIC, justify="center")
             self.label_warning.grid(row=1, columnspan=4, padx=10, pady=5)
 
         for widget in root.winfo_children():
@@ -93,7 +119,7 @@ class MapView:
         self.wrapper.pack(fill="both", expand=True)
         top_frame(ttk.Frame(self.wrapper))
 
-        self.container_frame = ttk.Frame(self.wrapper, padding=20)
+        self.container_frame = ttk.Frame(self.wrapper)
         self.container_frame.pack(fill="x", expand=True)
         self.container_frame.grid_rowconfigure(0, weight=1)
         self.container_frame.grid_rowconfigure(2, weight=1)
@@ -104,16 +130,47 @@ class MapView:
         self._render_buttons()
         self._reset_min_size()
 
+        # --- Status bar ---
+        self.bottom_frame = ttk.Frame(root)
+        self.bottom_frame.pack(side="bottom", fill="x")
+
+        self.status_bar = tk.Label(self.bottom_frame, text="Listo para escanear.", anchor="w", bg="#cccccc", fg="#171717", padx=5, pady=2)
+        self.status_bar.pack(side="bottom", fill="x")
+
     def _reset(self):
+        self.root.unbind("<Configure>")
+        self.root.unbind("<Key-c>")
+        self.root.unbind("<Key-C>")
+        self.root.unbind("<Key-f>")
+        self.root.unbind("<Key-F>")
+
+        self.grid = []
+        self.rows = 0
+        self.cols = 0
+        self.buttons = {}
+        self.image_cache = {}
         self._build_ui(self.root)
 
     def _get_project_folder(self):
-        return self._config.get("multi_scan", {}).get("folder", None)
+        project_folder = self._config.get("multi_scan", {}).get("folder", None)
+        if project_folder and os.path.isdir(project_folder) and os.listdir(project_folder):
+            return project_folder
+        else:
+            return os.path.expanduser("~")
+
+    def _on_project_code_change(self, *args):
+        print(args)
+        self._update_start_button_state()
+        folder = self._get_project_folder()
+        self.project_folder.set(f"{folder}{os.path.sep}{self.project_code.get()}")
 
     def _select_project_folder(self):
         folder = filedialog.askdirectory()
         if folder:
-            self.project_folder.set(Path(folder))
+            self.project_folder.set(f"{Path(folder)}{os.path.sep}{self.project_code.get()}")
+
+    def _open_project_folder(self):
+        Console.open_folder(self.project_folder.get())
 
     def _init_buttons(self):
         self.buttons = {
@@ -159,9 +216,19 @@ class MapView:
         button.grid(row=1, column=1, pady=80, sticky="nsew")
         self.buttons[ButtonType.START]["button"] = button
 
+    def _disable_buttons(self):
+        pass
+
     def _on_start_clicked(self):
         self.entry_project_code.config(state="disabled")
-        self._scan(0, 0)
+        self.buttons[ButtonType.START]["button"].config(state="disabled")
+        project_folder = self.project_folder.get()
+        os.makedirs(project_folder, exist_ok=True)
+        if os.path.isdir(project_folder):
+            self.button_project_folder.config(text="Abrir carpeta", command=self._open_project_folder)
+            self._scan(1, 1)
+        else:
+            raise RuntimeError(f"No se pudo crear la carpeta del proyecto: {project_folder}")
 
     def _update_start_button_state(self, *args):
         if self.project_code.get().strip():
@@ -170,11 +237,11 @@ class MapView:
             self.buttons[ButtonType.START]["button"].config(state="disabled")
 
     def _render_next_col_button(self):
-        button = self._make_plus_button("+\n(c)ol.", self.add_cell)
+        button = self._make_plus_button("+\n(c)ol.", self._scan_next)
         self.buttons[ButtonType.COL]["button"] = button
 
     def _render_next_row_button(self):
-        button = self._make_plus_button("+\n(f)ila", lambda: self.add_cell(row=True))
+        button = self._make_plus_button("+\n(f)ila", lambda: self._scan_next(new_row=True))
         self.buttons[ButtonType.ROW]["button"] = button
 
     def _make_plus_button(self, text, command):
@@ -189,6 +256,8 @@ class MapView:
             font=styles.MAP_PLUS_BUTTON,
             borderwidth=0,
             highlightthickness=0,
+            pady=0,
+            padx=0
         )
         plus_button.pack(fill="both", expand=True)
         return plus_button_frame
@@ -196,14 +265,15 @@ class MapView:
     def _make_grid_button(self, text, command):
         return tk.Button(
             self.content_frame,
-            image=self.image_cache.get("test"),
             command=command,
             width=self.button_pixel_size[0],
             height=self.button_pixel_size[1],
             font=("Helvetica", 18),
             bg="#000000",
             borderwidth=0,
-            highlightthickness=0
+            highlightthickness=0,
+            pady=0,
+            padx=0
         )
 
     def _update_column_headers(self):
@@ -256,7 +326,7 @@ class MapView:
     def _reset_min_size(self):
         self.root.update_idletasks()
         width = self.root.winfo_reqwidth()
-        height = self.root.winfo_reqheight()
+        height = self.root.winfo_reqheight() + 260
         self.root.minsize(width, height)
 
     def _on_mousewheel(self, event):
@@ -274,73 +344,71 @@ class MapView:
         self.canvas.update_idletasks()
         canvas_width = self.canvas.winfo_width()
         canvas_height = self.canvas.winfo_height()
+
         content_width = self.main_frame.winfo_reqwidth()
         content_height = self.main_frame.winfo_reqheight()
+
+        # Only center if content is smaller than canvas
         x = max((canvas_width - content_width) // 2, 0)
         y = max((canvas_height - content_height) // 2, 0)
+
         self.canvas.coords(self.content_window, x, y)
 
     def _bind_mouse_scroll_events(self):
         self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)  # Windows/macOS
         self.canvas.bind_all("<Button-4>", self._on_mousewheel)    # Linux scroll up
         self.canvas.bind_all("<Button-5>", self._on_mousewheel)    # Linux scroll down
-        # self.canvas.bind("<Configure>", self._center_content)
 
     def _bind_resize_events(self):
         self.root.bind("<Configure>", self._on_resize)
+        self.canvas.bind("<Configure>", self._update_scroll_region)
+        self.main_frame.bind("<Configure>", self._update_scroll_region)
 
     def _on_resize(self, event):
-        if self.main_frame:
-            required_height = self.main_frame.winfo_reqheight()
-            required_width = self.main_frame.winfo_reqwidth()
-            self.canvas.config(height=required_height, width=required_width)
-        self._update_scroll_region(event)
-            # self._reset_min_size()
-        self._center_content()
+        required_height = self.main_frame.winfo_reqheight()
+        required_width = self.main_frame.winfo_reqwidth()
+        self.canvas.config(height=required_height, width=required_width)
 
-    def _update_scroll_region(self, event):
-        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-        content_height = self.canvas.bbox("all")[3]
+    def _update_scroll_region(self, event=None):
+        self.canvas.update_idletasks()
+        bbox = self.canvas.bbox("all")
+        if bbox:
+            self.canvas.config(scrollregion=bbox)
+
+        content_height = self.main_frame.winfo_height()
         canvas_height = self.canvas.winfo_height()
 
         if content_height > canvas_height:
             if not self.scrollbar_visible:
-                self.scrollbar.pack(side="right", fill="y")
+                self.scrollbar.grid(row=0, column=2, sticky="nsw")
                 self.scrollbar_visible = True
         else:
             if self.scrollbar_visible:
-                self.scrollbar.pack_forget()
+                self.scrollbar.grid_forget()
                 self.scrollbar_visible = False
 
-        # self._center_content()
-
-
-
-
-
-
-
-
-
     def _create_grid(self):
-        for widget in self.container_frame.winfo_children():
-            widget.destroy()
+        self.container_frame.destroy()
+        if not self.grid:
+            self._reset_min_size()
 
-        self.canvas = tk.Canvas(self.container_frame, bd=0, highlightthickness=2, highlightbackground="black")
-        self.canvas.pack(in_=self.container_frame, fill="both", expand=True)
+        self.container_frame = ttk.Frame(self.wrapper, padding=20)
+        self.container_frame.pack(fill="x", expand=True)
+        self.container_frame.grid_rowconfigure(0, weight=1)
+
+        self.container_frame.grid_columnconfigure(0, weight=1)
+        self.container_frame.grid_columnconfigure(1, weight=0)
+        self.container_frame.grid_columnconfigure(2, weight=1)
+
+        self.canvas = tk.Canvas(self.container_frame, bd=0, highlightthickness=0)
+        self.canvas.grid(row=0, column=1, sticky="nsew")
 
         self.scrollbar = ttk.Scrollbar(self.container_frame, orient=tk.VERTICAL, command=self.canvas.yview)
-        self.scrollbar.pack(side="right", fill=tk.Y)
-
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
-
-        self._bind_mouse_scroll_events()
-        self._bind_resize_events()
-
         self.scrollbar_visible = False
 
         self.main_frame = ttk.Frame(self.canvas, padding=0)
-        self.content_window = self.canvas.create_window((0, 0), window=self.main_frame, anchor="nw")
+        self.content_window = self.canvas.create_window(0, 0, window=self.main_frame, anchor="nw")
 
         self.header_frame = ttk.Frame(self.main_frame, padding=0)
         self.header_frame.grid(row=0, column=1, sticky="nw")
@@ -349,51 +417,10 @@ class MapView:
         self.content_frame = ttk.Frame(self.main_frame, padding=0)
         self.content_frame.grid(row=1, column=1, sticky="nsew")
 
-        # self._center_content()
-        # self.canvas.update_idletasks()
+        self._bind_resize_events()
+        self._bind_mouse_scroll_events()
 
-        # self.main_frame.bind("<Configure>", self._update_scroll_region)
-        # self._last_geometry = ""
-        # self._poll_for_resize()
-
-    def _scan(self, row, col):
-        filename = f"./{row}-{col}.png"
-        # self.scan_button.config(state="disabled")
-        # self.status_label.config(text="Escaneando...")
-
-        def do_scan():
-
-            try:
-                # Console().scan(filename)
-                pass
-            except FileAlreadyExistsError as e:
-                # self.root.after(0, lambda: self.scan_button.config(state="normal"))
-                # self.root.after(0, lambda: self.status_label.config(text=""))
-                self.root.after(0, lambda: messagebox.showerror(
-                    "Error",
-                    f"El siguiente archivo que se intenta crear ya existe:\n\n{filename}\n\n"
-                    "Eliminar el archivo o actualizar el nombre del próximo escaneo."
-                ))
-                print("Error:", e)
-                return
-
-            # self.state.prefix = self.prefix.get()
-            # self.state.folder = self.folder.get()
-            # self.state.save_config()
-            self._create_grid()
-            return
-
-            self.root.after(0, lambda: (
-                self._load_images(filename),
-                self.add_cell()
-            ))
-
-            # self.root.after(0, lambda: self.scan_button.config(state="normal"))
-            # self.root.after(0, lambda: self.status_label.config(text="Escaneo finalizado. Listo para escanear."))
-
-        threading.Thread(target=do_scan, daemon=True).start()
-
-    def add_cell(self, row=False):
+    def _add_cell(self, row=False):
         button = self._make_grid_button("", None)
         if not self.grid:  # Empty grid. Create first cell: Create first row and add first col -> Next only "Add col" available
             self.buttons[ButtonType.START]["display"] = False
@@ -435,13 +462,16 @@ class MapView:
         for r, row_items in enumerate(self.grid):
             for c, btn in enumerate(row_items):
                 if isinstance(btn, tk.Button):
+                    print(f"Adding button at {r}, {c}")
+                    print(self.image_cache)
+                    print(self.image_cache.get(f"{r+1}-{c+1}"))
+
+                    btn.configure(image=self.image_cache.get(f"{r+1}-{c+1}"))
                     btn.configure(text=f"{utils.alpha_converter(r)}, {c}")
                     btn.configure(command=self._make_callback(r, c))
-
-                    # double-click
-                                        # Right-click menu
-                    menu = self._make_right_click_menu(r, c)
-                    btn.bind("<Button-3>", lambda e: menu.tk_popup(e.x_root, e.y_root))
+                    btn.bind("<Double-Button-1>", self._make_double_click_callback(r, c))
+                    right_click_menu = self._make_right_click_menu(r, c)
+                    btn.bind("<Button-3>", lambda e, menu=right_click_menu: menu.tk_popup(e.x_root, e.y_root))
                     btn.grid(row=r, column=c, padx=2, pady=2)
 
         self.rows = len(self.grid)
@@ -449,20 +479,16 @@ class MapView:
         self._render_buttons()
         self._update_column_headers()
         self._update_row_headers()
-        # self._update_window_size()
-
-
-
-
 
     def _make_callback(self, r, c):
-        return self._show_full_image
+        return lambda: print(f"Callback for {r}, {c}")
+        # return self._view_scan
         # return lambda: self.scan(r, c)
 
     def _make_double_click_callback(self, r, c):
         def callback(event):
-            print(f"Double-clicked on button at {r}, {c}")
-            # your logic here
+            filepath = f"{self.project_folder.get()}/{self.project_code.get()}_{r+1}-{c+1}.{self._filetype}"
+            self._view_scan(filepath)
         return callback
 
     def _make_right_click_menu(self, r, c):
@@ -471,27 +497,9 @@ class MapView:
         menu.add_command(label="Option B", command=lambda: print(f"Option B at {r}, {c}"))
         return menu
 
-    def _show_full_image(self):
-        viewer = tk.Toplevel(self.root)
-        viewer.focus_force()
-        image_filename = os.path.abspath("test/test.png")
-
-        viewer = ImageViewer(viewer, image_filename)
-
-        # viewer_window = tk.Toplevel(self.root)  # Use Toplevel instead of creating a new root
-        # viewer = ImageViewer(master=viewer_window)
-
-        # top.geometry("600x400")
-        # viewer = ImageViewer(master=top)
-        # viewer.pack(fill=tk.BOTH, expand=True)
-
-    def _load_images(self, filename):
-        image_path = os.path.join(filename)
+    def _cache_thumbnails(self, filepath, filename, row, col):
+        image_path = os.path.join(filepath)
         original = Image.open(image_path)
-
-        # Cache the full-size original image for popup
-        self.image_cache["test_original"] = original.copy()
-
         # Crop to square (centered)
         width, height = original.size
         min_side = min(width, height)
@@ -500,53 +508,108 @@ class MapView:
         right = left + min_side
         bottom = top + min_side
         cropped = original.crop((left, top, right, bottom))
-
         # Resize to button pixel size with high-quality resampling
         resized = cropped.resize(self.button_pixel_size, Image.Resampling.LANCZOS)
-        self.image_cache["test"] = ImageTk.PhotoImage(resized)
+        print("Caching thumbnail for", filename, "at", row, col)
+        self.image_cache[f"{row}-{col}"] = ImageTk.PhotoImage(resized)
+        print(self.image_cache)
+
+    def _scan_next(self, new_row=False):
+        if new_row:
+            next_row = self.rows + 1
+            if self.rows % 2: # Odd rows (1, 3, 5, 7...)
+                next_col = self.cols
+            else: # Even rows (2, 4, 6, 8...)
+                next_col = 1
+        else:
+            next_row = self.rows
+            if self.rows % 2: # Odd rows (1, 3, 5, 7...)
+                next_col = len(self.grid[-1]) + 1
+            else: # Even rows (2, 4, 6, 8...)
+                (_, next_col) = utils.get_first_valid_element(self.grid[-1])
+        self._scan(next_row, next_col, new_row=new_row)
+
+    def _scan(self, row, col, new_row=False):
+        project_folder = self.project_folder.get()
+        project_code = self.project_code.get()
+        filename = f"{project_code}_{row}-{col}.{self._filetype}"
+        filepath = f"{project_folder}/{filename}"
+        self.status_bar.config(text="Escaneando...")
+        # self.scan_button.config(state="disabled")
+        def do_scan():
+            try:
+                self.scanning = True
+                Console().scan(filepath)
+                self.status_bar.config(text="Escaneo finalizado. Listo para escanear.")
+                # self.state.prefix = self.prefix.get()
+                # self.state.folder = self.folder.get()
+                # self.state.save_config()
+                if not self.grid:
+                    self._create_grid()
+
+                self.root.after(0, lambda: (
+                    self._cache_thumbnails(filepath, filename, row, col),
+                    self._add_cell(new_row)
+                ))
+                # self.root.after(0, lambda: self.scan_button.config(state="normal"))
+                # self.root.after(0, lambda: self.status_label.config(text="Escaneo finalizado. Listo para escanear."))
+
+            except FileAlreadyExistsError as e:
+                # self.root.after(0, lambda: self.scan_button.config(state="normal"))
+                # self.root.after(0, lambda: self.status_label.config(text=""))
+                self.root.after(0, lambda: messagebox.showerror(
+                    "Error",
+                    f"El siguiente archivo que se intenta crear ya existe:\n\n{filepath}\n\n"
+                    "Eliminar el archivo o actualizar el nombre del próximo escaneo."
+                ))
+                self.status_bar.config(text=f"Error: {e}")
+            finally:
+                self.scanning = False
+        threading.Thread(target=do_scan, daemon=True).start()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    def _update_helper_label():
+        pass
+
+
+
+
+
+    def _view_scan(self, filepath):
+        viewer = tk.Toplevel(self.root)
+        viewer.focus_force()
+        image_filename = os.path.abspath(filepath)
+        viewer = ImageViewer(viewer, image_filename)
+
+
+        # viewer_window = tk.Toplevel(self.root)  # Use Toplevel instead of creating a new root
+        # viewer = ImageViewer(master=viewer_window)
+
+        # top.geometry("600x400")
+        # viewer = ImageViewer(master=top)
+        # viewer.pack(fill=tk.BOTH, expand=True)
+
+
+
+
+
+
 
     # # def set_scan_folder(self, folder):
     # #     Config().set_scan_folder(folder)
-    #     # self._load_images()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    # def _poll_for_resize(self):
-    #     current_geometry = self.root.geometry()
-    #     if current_geometry != self._last_geometry:
-    #         self._last_geometry = current_geometry
-    #         self._center_content()
-    #         self._update_scroll_region(None)
-    #     self.root.after(200, self._poll_for_resize)
-
-    # def _update_window_size(self):
-        # self.root.update_idletasks()
-        # width = self.main_frame.winfo_reqwidth()
-        # height = self.main_frame.winfo_reqheight()
-        # current_width = self.root.winfo_width()
-        # current_height = self.root.winfo_height()
-
-        # if width > current_width:
-        #     self.root.geometry(f"{width}x{current_height}")
-        # if height > current_height:
-        #     self.root.geometry(f"{current_width}x{height}")
-        # self.root.minsize(width, self.min_height)
-
-
+    #     # self._cache_thumbnails()

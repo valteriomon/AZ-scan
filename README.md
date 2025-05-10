@@ -5,36 +5,9 @@
 # TO DO
 
 ## Map view
-- P0
-    - Save scanned file with filename according to prefix code + matrix position
-        - Create new folder with project code
-    - Re-scan specific matrix position
-        - Warn if file exists will be overriden
-    - Specify saving folder
-    - Reset/New button
-        - Destroy widgets
-    - Set "Scanning" in status bar and disable next scan buttons until completed
-    - Catch scanner error
-    - Left click menu: Open, Rescan
-    - Join/create PTO
-    - Add patch image to project button: place in right place
-    - Rotate grid ()
-    - Volver al menu
-    - Salir
-    - Stitcher view
-- P1
-    - Open existing project
-    - Back to main menu
-    - Mapas v2 -> Join while scanning
-- P2
-    - Set map size
-    - Rotate (90 degrees) scan and save
-    - Add help, shortcuts, info on how to use
-    - Rotate all images at once
-        - All (that arent rotated already) or pick which ones
-- P3
-    - Drag and drop joints generator
-    - Log errors
+- Set map size
+- Drag and drop joints generator
+- Log errors
 
 
 ## Postcard view
