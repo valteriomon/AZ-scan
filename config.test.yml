@@ -29,8 +29,6 @@ last_scan:
   prefix: 00_TBDsv
   folder: D:\Desktop
   filename: 00_TBDsv_15_A
-multi_scan:
-  folder: D:\Desktop
 options:
   scanner:
     naps2_path: C:\Program Files\NAPS2\NAPS2.Console.exe
@@ -38,3 +36,5 @@ options:
     device: twain
     dpi: 600
     filetype: png
+multi_scan:
+  folder: D:\Desktop

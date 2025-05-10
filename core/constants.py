@@ -20,6 +20,9 @@ DEFAULT_STATE = {
             "dpi": 600,
             "filetype": "png"
         }
+    },
+    "multi_scan": {
+        "folder": None
     }
 }
 

@@ -15,6 +15,8 @@ prefixes:
   last_index: 11
 - code: 04_P-POV
   last_index: null
+multi_scan:
+  folder:
 last_scan:
   prefix: 00_TBD
   folder: C:\Users\Wally

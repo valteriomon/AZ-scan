@@ -1,4 +1,4 @@
-import os, threading
+import os, threading, re
 from pathlib import Path
 from core.constants import APP_TITLE, MAPS_VIEW_TITLE
 from core.config import Config
@@ -13,17 +13,6 @@ import tkinter as tk
 import tkinter.font as tkfont
 from tkinter import ttk, messagebox, filedialog
 from PIL import Image, ImageTk
-
-# TODO
-# - Right click action: View
-# - Right click action: Rescan
-# - Right click action: Rotation and reload
-# - Save project folder to yaml
-# - Rotate all images at once
-#   - All (that arent rotated already) or pick which ones
-# - Open existing project
-#     - Warn if file exists will be overriden
-# - Check filename saving name (alphanumeric)
 
 class ButtonType(Enum):
     START = "start"
@@ -40,6 +29,7 @@ class MapView:
         self.min_height = 400
         self.root.minsize(self.min_width, self.min_height)
         self.scanning = False
+        self.rotation_angle = 0
 
         self.button_pixel_size = (200, 200)
 
@@ -104,7 +94,7 @@ class MapView:
             },
             {
                 "label": "Cargar proyecto",
-                "command": lambda: print("Cargar proyecto")
+                "command": self._load_project
             },
             {
                 "label": "Menú principal",
@@ -123,8 +113,11 @@ class MapView:
         self.container_frame.grid_columnconfigure(0, weight=1)
         self.container_frame.grid_columnconfigure(2, weight=1)
 
-        self.status_bar = tk.Label(self.wrapper, text="Listo para escanear.", anchor="w", bg="#cccccc", fg="#171717", padx=5, pady=4)
-        self.status_bar.pack(side="bottom", fill="x")
+        self.bottom_frame = tk.Frame(self.wrapper, bg="#cccccc")
+        self.bottom_frame.pack(side="bottom", fill="x")
+
+        self.status_bar = tk.Label(self.bottom_frame, text="Listo para escanear.", anchor="w", bg="#cccccc", fg="#171717", padx=5, pady=4)
+        self.status_bar.pack(side="left", fill="x", expand=True)
 
         self._init_buttons()
         self._render_buttons()
@@ -141,6 +134,7 @@ class MapView:
         self.cols = 0
         self.buttons = {}
         self.image_cache = {}
+        self.image_paths = {}
         self._build_ui(self.root)
         self._reset_min_size()
 
@@ -150,6 +144,12 @@ class MapView:
             return project_folder
         else:
             return os.path.expanduser("~")
+
+    def _set_project_folder(self):
+        if "multi_scan" not in self._config:
+            self._config["multi_scan"] = {}
+        self._config["multi_scan"]["folder"] = str(self.base_project_folder)
+        Config().save(self._config)
 
     def _on_project_code_change(self, *args):
         self._update_start_button_state()
@@ -457,13 +457,9 @@ class MapView:
         for r, row_items in enumerate(self.grid):
             for c, btn in enumerate(row_items):
                 if isinstance(btn, tk.Button):
-                    print(f"Adding button at {r}, {c}")
-                    print(self.image_cache)
-                    print(self.image_cache.get(f"{r+1}-{c+1}"))
-
                     btn.configure(image=self.image_cache.get(f"{r+1}-{c+1}"))
                     btn.configure(text=f"{utils.alpha_converter(r)}, {c}")
-                    btn.configure(command=self._make_callback(r, c))
+                    # btn.configure(command=self._make_callback(r, c))
                     btn.bind("<Double-Button-1>", self._make_double_click_callback(r, c))
                     right_click_menu = self._make_right_click_menu(r, c)
                     btn.bind("<Button-3>", lambda e, menu=right_click_menu: menu.tk_popup(e.x_root, e.y_root))
@@ -475,10 +471,8 @@ class MapView:
         self._update_column_headers()
         self._update_row_headers()
 
-    def _make_callback(self, r, c):
-        return lambda: print(f"Callback for {r}, {c}")
-        # return self._view_scan
-        # return lambda: self.scan(r, c)
+    # def _make_callback(self, r, c):
+    #     return lambda: print(f"Callback for {r}, {c}")
 
     def _make_double_click_callback(self, r, c):
         def callback(event):
@@ -486,32 +480,17 @@ class MapView:
         return callback
 
     def _make_right_click_menu(self, r, c):
+        filepath = self._get_file_path(r, c)
         menu = tk.Menu(self.root, tearoff=0)
-        menu.add_command(label="Ver", command=lambda: self._view_scan(self._get_file_path(r, c)))
-        menu.add_command(label="Re-escanear", command=lambda: self._rescan(self._get_file_path(r, c)))
-        menu.add_command(label="⟳ Rotar 90°", command=lambda: print(f"Option B at {r}, {c}"))
-        menu.add_command(label="⟲ Rotar -90°", command=lambda: print(f"Option B at {r}, {c}"))
+        menu.add_command(label="Ver", command=lambda: self._view_scan(filepath))
+        menu.add_command(label="Re-escanear", command=lambda: self._rescan(r+1, c+1,filepath))
+        menu.add_command(label="⟳ Rotar 90°", command=lambda: self._rotate_image_clockwise(r+1, c+1))
+        menu.add_command(label="⟲ Rotar -90°", command=lambda: self._rotate_image_counterclockwise(r+1, c+1))
         return menu
 
-    def _cache_thumbnails(self, filepath, filename, row, col):
-        image_path = os.path.join(filepath)
-        original = Image.open(image_path)
-        # Crop to square (centered)
-        width, height = original.size
-        min_side = min(width, height)
-        left = (width - min_side) // 2
-        top = (height - min_side) // 2
-        right = left + min_side
-        bottom = top + min_side
-        cropped = original.crop((left, top, right, bottom))
-        # Resize to button pixel size with high-quality resampling
-        resized = cropped.resize(self.button_pixel_size, Image.Resampling.LANCZOS)
-        print("Caching thumbnail for", filename, "at", row, col)
-        self.image_cache[f"{row}-{col}"] = ImageTk.PhotoImage(resized)
-        print(self.image_cache)
-
     def _get_file_path(self, row, col):
-        return f"{self.project_folder.get()}/{self.project_code.get()}_{row+1}-{col+1}.{self._filetype}"
+        alpha_row = utils.alpha_converter(row)
+        return f"{self.project_folder.get()}/{self.project_code.get()}_{alpha_row}{col+1}.{self._filetype}"
 
     def _scan_next(self, new_row=False):
         if new_row:
@@ -534,18 +513,40 @@ class MapView:
             return
         project_folder = self.project_folder.get()
         project_code = self.project_code.get()
-        filename = f"{project_code}_{row}-{col}.{self._filetype}"
+        alpha_row = utils.alpha_converter(row, zero_based=False)
+        filename = f"{project_code}_{alpha_row}{col}.{self._filetype}"
         filepath = f"{project_folder}/{filename}"
         self.status_bar.config(text="Escaneando...")
         def do_scan():
             try:
                 self.scanning = True
                 Console().scan(filepath)
+                if self.rotation_angle != 0:
+                    img = Image.open(filepath)
+                    rotated = img.rotate(-self.rotation_angle, expand=True)
+                    rotated.save(filepath)
                 self.status_bar.config(text="Escaneo finalizado. Listo para escanear.")
                 if not self.grid:
                     self._create_grid()
-                    self.label_warning.config(text="Atajos de teclado: (c) para escanear columnas, (f) para escanear filas.")
-                    self._bind_keys()
+                    self._new_grid_ui()
+                    # self.label_warning.config(text="Atajos de teclado: (c) para escanear columnas, (f) para escanear filas.")
+                    # self._bind_keys()
+                    # self._set_project_folder()
+
+                    # rotate_right_btn = tk.Button(self.bottom_frame, text="⟳ Rotar todo", command=self._rotate_all_images_clockwise, bg="#cccccc", activebackground="#bbbbbb", relief="flat")
+                    # rotate_right_btn.pack(side="right", padx=(5, 0))
+                    # rotate_left_btn = tk.Button(self.bottom_frame, text="⟲ Rotar todo", command=self._rotate_all_images_counterclockwise, bg="#cccccc", activebackground="#bbbbbb", relief="flat")
+                    # rotate_left_btn.pack(side="right", padx=(5, 0))
+                    # self.rotation_label_var = tk.StringVar(value=f"Rotación actual: {self.rotation_angle}°")
+                    # self.rotation_label = tk.Label(
+                    #     self.bottom_frame,
+                    #     textvariable=self.rotation_label_var,
+                    #     bg="#cccccc",
+                    #     fg="#171717",
+                    #     padx=5,
+                    #     pady=4
+                    # )
+                    # self.rotation_label.pack(side="right")
 
                 self.root.after(0, lambda: (
                     self._cache_thumbnails(filepath, filename, row, col),
@@ -562,8 +563,34 @@ class MapView:
                 self.scanning = False
         threading.Thread(target=do_scan, daemon=True).start()
 
-    def _rescan(self, filepath):
-        self._scan(filepath)
+    def _rescan(self, row, col, filepath):
+        if self.scanning:
+            print("Already scanning")
+            return
+        self.status_bar.config(text="Escaneando...")
+        def do_scan():
+            try:
+                self.scanning = True
+                Console().scan(filepath)
+                if self.rotation_angle != 0:
+                    img = Image.open(filepath)
+                    rotated = img.rotate(-self.rotation_angle, expand=True)
+                    rotated.save(filepath)
+                self._cache_thumbnails(filepath, None, row, col)
+                btn = self.grid[row-1][col-1]
+                if btn:
+                    btn.configure(image=self.image_cache.get(f"{row}-{col}"))
+                self.status_bar.config(text="Escaneo finalizado. Listo para escanear.")
+            except FileAlreadyExistsError as e:
+                self.root.after(0, lambda: messagebox.showerror(
+                    "Error",
+                    f"El siguiente archivo que se intenta crear ya existe:\n\n{filepath}\n\n"
+                    "Eliminar el archivo o actualizar el nombre del próximo escaneo."
+                ))
+                self.status_bar.config(text=f"Error: {e}")
+            finally:
+                self.scanning = False
+        threading.Thread(target=do_scan, daemon=True).start()
 
     def _view_scan(self, filepath):
         viewer = tk.Toplevel(self.root)
@@ -571,32 +598,141 @@ class MapView:
         image_filename = os.path.abspath(filepath)
         viewer = ImageViewer(viewer, image_filename)
 
+    def _cache_thumbnails(self, filepath, filename, row, col):
+        image_path = os.path.join(filepath)
+        original = Image.open(image_path)
+        # Crop to square (centered)
+        width, height = original.size
+        min_side = min(width, height)
+        left = (width - min_side) // 2
+        top = (height - min_side) // 2
+        right = left + min_side
+        bottom = top + min_side
+        cropped = original.crop((left, top, right, bottom))
+        # Resize to button pixel size with high-quality resampling
+        resized = cropped.resize(self.button_pixel_size, Image.Resampling.LANCZOS)
+        self.image_cache[f"{row}-{col}"] = ImageTk.PhotoImage(resized)
+        self.image_paths[f"{row}-{col}"] = image_path
 
-
-
-    # def save_project_folder(self, folder):
-        # Config().set_scan_folder(folder)
-        # self._cache_thumbnails()
-
-    def rotate_image_90(self, row, col):
-        self._rotate_image(row, col, angle=90)
-
-    def rotate_image_minus_90(self, row, col):
+    def _rotate_image_clockwise(self, row, col):
         self._rotate_image(row, col, angle=-90)
 
+    def _rotate_image_counterclockwise(self, row, col):
+        self._rotate_image(row, col, angle=90)
+
     def _rotate_image(self, row, col, angle):
-        key = (row, col)
-        if key not in self.image_cache:
-            return  # No image to rotate
-
-        img = self.image_cache[key]
+        key = f"{row}-{col}"
+        filepath = self.image_paths.get(key)
+        if not filepath or not os.path.exists(filepath):
+            print(f"No image found at {key}")
+            return
+        img = Image.open(filepath)
         rotated = img.rotate(angle, expand=True)
-        self.image_cache[key] = rotated
+        rotated.save(filepath)
+        self._cache_thumbnails(filepath, None, row, col)
+        btn = self.grid[row-1][col-1]
+        if btn:
+            btn.configure(image=self.image_cache.get(f"{row}-{col}"))
 
-        # Resize for display if needed
-        display_img = rotated.copy()
-        display_img.thumbnail((100, 100))  # Adjust size as needed
-        tk_image = ImageTk.PhotoImage(display_img)
+    def _rotate_all_images_clockwise(self):
+        self.rotation_angle = (self.rotation_angle + 90) % 360
+        self.rotation_label_var.set(value=f"Rotación actual: {self.rotation_angle}°")
+        self._rotate_all_images(angle=-90)
 
-        self.buttons[key].config(image=tk_image)
-        self.buttons[key].image = tk_image  # Keep reference
+    def _rotate_all_images_counterclockwise(self):
+        self.rotation_angle = (self.rotation_angle - 90) % 360
+        self.rotation_label_var.set(value=f"Rotación actual: {self.rotation_angle}°")
+        self._rotate_all_images(angle=90)
+
+    def _rotate_all_images(self, angle):
+        for row in range(1, self.rows + 1):
+            for col in range(1, self.cols + 1):
+                self._rotate_image(row, col, angle)
+
+    def _load_project(self):
+        folder = filedialog.askdirectory()
+        self._reset()
+
+        # Try to detect the project code from files
+        all_files = os.listdir(folder)
+        filetype = self._filetype
+        file_pattern = re.compile(rf"^(.+)_([A-Z]+)(\d+)\.{filetype}$")
+
+        matched_files = [f for f in all_files if file_pattern.match(f)]
+        if not matched_files:
+            messagebox.showwarning("Advertencia", "No se encontraron archivos válidos en la carpeta.")
+            return
+
+        # Extract code from the first matching filename
+        first_match = file_pattern.match(matched_files[0])
+        if not first_match:
+            return
+        code = first_match.group(1)
+        self.project_code.set(code)
+
+        # Prepare the grid dictionary: {(row, col): filename}
+        grid_data = {}
+        max_row = 0
+        max_col = 0
+        for filename in matched_files:
+            match = file_pattern.match(filename)
+            if not match:
+                continue
+            alpha_row, col = match.group(2), int(match.group(3))
+            row = utils.alpha_converter(alpha_row, zero_based=False)  # Needs to be implemented if not already
+            grid_data[(row, col)] = filename
+            max_row = max(max_row, row)
+            max_col = max(max_col, col)
+
+        self._create_grid()
+        self._new_grid_ui()
+        self.grid = [[None for _ in range(max_col)] for _ in range(max_row)]
+
+        # self.root.after(0, lambda: (
+        #     self._cache_thumbnails(filepath, filename, row, col),
+        #     self._add_cell(False)
+        # ))
+        # return
+
+        for (row, col), filename in grid_data.items():
+            filepath = os.path.join(folder, filename)
+            self._cache_thumbnails(filepath, filename, row, col)
+            button = self._make_grid_button("", None)
+            button.configure(image=self.image_cache.get(f"{row}-{col}"))
+            button.configure(text=f"{utils.alpha_converter(row-1)}, {col-1}")
+            button.bind("<Double-Button-1>", self._make_double_click_callback(row-1, col-1))
+            right_click_menu = self._make_right_click_menu(row-1, col-1)
+            button.bind("<Button-3>", lambda e, menu=right_click_menu: menu.tk_popup(e.x_root, e.y_root))
+            button.grid(row=row-1, column=col-1, padx=2, pady=2)
+            self.grid[row-1][col-1] = button
+            self.image_paths[f"{row}-{col}"] = filepath
+
+        self.rows = max_row
+        self.cols = max_col
+        self._render_buttons()
+        self._update_column_headers()
+        self._update_row_headers()
+
+    def _new_grid_ui(self):
+        self.label_warning.config(text="Atajos de teclado: (c) para escanear columnas, (f) para escanear filas.")
+        self._bind_keys()
+        self._set_project_folder()
+        rotate_right_btn = tk.Button(self.bottom_frame, text="⟳ Rotar todo", command=self._rotate_all_images_clockwise, bg="#cccccc", activebackground="#bbbbbb", relief="flat")
+        rotate_right_btn.pack(side="right", padx=(5, 0))
+        rotate_left_btn = tk.Button(self.bottom_frame, text="⟲ Rotar todo", command=self._rotate_all_images_counterclockwise, bg="#cccccc", activebackground="#bbbbbb", relief="flat")
+        rotate_left_btn.pack(side="right", padx=(5, 0))
+        self.rotation_label_var = tk.StringVar(value=f"Rotación actual: {self.rotation_angle}°")
+        self.rotation_label = tk.Label(
+            self.bottom_frame,
+            textvariable=self.rotation_label_var,
+            bg="#cccccc",
+            fg="#171717",
+            padx=5,
+            pady=4
+        )
+        self.rotation_label.pack(side="right")
+
+        # self.root.after(0, lambda: (
+        #     self._cache_thumbnails(filepath, filename, row, col),
+        #     self._add_cell(new_row)
+        # ))
