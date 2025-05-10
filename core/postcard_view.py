@@ -37,8 +37,8 @@ class PostcardView:
         # Let the geometry be determined by the content
         self.resize_after_id = None
 
-        # self.viewers = []        # List of ImageViewer instances
-        # self.current_index = -1  # Index of currently visible viewer
+        self.viewers = []
+        self.current_index = -1  # Index of currently visible viewer
 
     def _key_bindings(self):
         self.root.bind("<Return>", lambda event: self.scan())
@@ -289,8 +289,8 @@ class PostcardView:
 
     def _scan(self):
 
-    # #     self.scan_button.config(state="disabled")
-    # #     self.status_label.config(text="Escaneando...")
+        self.scan_button.config(state="disabled")
+        self.status_label.config(text="Escaneando...")
 
         def do_scan():
             index = self.index.get()
@@ -300,7 +300,26 @@ class PostcardView:
                 self.state.index = int(index)
 
             try:
+                print(self.state.next_scan)
                 Console().scan(self.state.next_scan)
+                if self.save_state.get():
+                    self.state.save_config()
+
+                self.last_scan.set(self.state.next_scan)
+                next_scan = self.next_scan.get()
+                self.update_ui()
+
+                image_filename = os.path.abspath(next_scan)
+                viewer = ImageViewer(self.preview_frame, image_filename, status_bar_enabled=False)
+                viewer.pack(fill=tk.BOTH, expand=True)
+                self.viewers.append(viewer)
+                self.show_viewer(len(self.viewers) - 1)
+
+                    # self.root.after(0, self.update_ui)
+        #     #         self.root.after(0, lambda: self.scan_button.config(state="normal"))
+        #     #         self.root.after(0, lambda: self.status_label.config(text="Escaneo finalizado. Listo para escanear."))
+
+
             except FileAlreadyExistsError as e:
     # #             self.root.after(0, lambda: self.scan_button.config(state="normal"))
     # #             self.root.after(0, lambda: self.status_label.config(text=""))
@@ -309,52 +328,21 @@ class PostcardView:
                     f"El siguiente archivo que se intenta crear ya existe:\n\n{next_file}\n\n"
                     "Eliminar el archivo o actualizar el nombre del próximo escaneo."
                 ))
-                print("Error:", e)
-                return
-
-            if self.save_state.get():
-                self.last_scan.set(self.state.next_scan)
-                self.state.save_config()
-                self.update_ui()
-                # self.last_scan.set(self.state.last_scan)
-
-    #     #         # self.show_image(next_file)
-    #     #         # viewer = tk.Toplevel(self.root)
-    #     #         # viewer.focus_force()
-
-
-                image_filename = os.path.abspath(next_file)
-    #     #         viewer = ImageViewer(self.preview_frame, image_filename, status_bar_enabled=False)
-
-    #     #         # viewer.pack(fill=tk.BOTH, expand=True)
-    #     #         self.viewers.append(viewer)
-    #     #         self.show_viewer(len(self.viewers) - 1)
-
-    #     #         # ImageViewer(self.row_5, image_filename)
-
-                # self.root.after(0, self.update_ui)
-    #     #         self.root.after(0, lambda: self.scan_button.config(state="normal"))
-    #     #         self.root.after(0, lambda: self.status_label.config(text="Escaneo finalizado. Listo para escanear."))
-
+                self.status_label.config(text="Error: " + str(e))
         threading.Thread(target=do_scan, daemon=True).start()
 
+    def show_viewer(self, index):
+        for viewer in self.viewers:
+            viewer.pack_forget()
 
+        if 0 <= index < len(self.viewers):
+            self.viewers[index].pack(fill=tk.BOTH, expand=True)
+            self.current_index = index
 
-    # # def show_image(self, filepath):
-    # #     pass
+            # filename = Path(self.viewers[index].filepath.get()).name
+            # self.viewer_label_var.set(f"Escaneo {index + 1} de {len(self.viewers)} - {filename}")
 
-    # # def show_viewer(self, index):
-    # #     for viewer in self.viewers:
-    # #         viewer.pack_forget()
-
-    # #     if 0 <= index < len(self.viewers):
-    # #         self.viewers[index].pack(fill=tk.BOTH, expand=True)
-    # #         self.current_index = index
-
-    # #         filename = Path(self.viewers[index].filepath.get()).name
-    # #         self.viewer_label_var.set(f"Escaneo {index + 1} de {len(self.viewers)} - {filename}")
-
-    # #     self.update_nav_buttons()
+        # self.update_nav_buttons()
 
     def _previous_viewer(self):
         pass

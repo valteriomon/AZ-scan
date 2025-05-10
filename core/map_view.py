@@ -1,10 +1,13 @@
 # TODO:
 
-
 import os, threading
+from pathlib import Path
 from core.constants import APP_TITLE, MAPS_VIEW_TITLE
+from core.config import Config
 from core.image_viewer  import ImageViewer
 from core.console import Console
+from core.ui_modules import Ui
+import core.ui_styles as styles
 import core.utils as utils
 from core.custom_error import FileAlreadyExistsError
 from enum import Enum
@@ -26,27 +29,8 @@ class MapView:
 
         self.min_width = 600
         self.min_height = 400
-        self.root.geometry(f"{self.min_width}x{self.min_height}")
         self.root.minsize(self.min_width, self.min_height)
 
-        # self._setup_styles()
-
-        self._build_menu()
-
-        self.wrapper = ttk.Frame(self.root)
-        self.wrapper.pack(fill="both", expand=True)
-
-        self._build_top_frame()
-
-        self.container_frame = ttk.Frame(self.wrapper)
-        self.container_frame.pack(fill="x", expand=True)
-
-        self.container_frame.grid_rowconfigure(0, weight=1)
-        self.container_frame.grid_rowconfigure(2, weight=1)
-        self.container_frame.grid_columnconfigure(0, weight=1)
-        self.container_frame.grid_columnconfigure(2, weight=1)
-
-        self.reset()
         self.button_pixel_size = (200, 200)
         self.grid = []
         self.rows = 0
@@ -54,187 +38,82 @@ class MapView:
         self.buttons = {}
         self.image_cache = {}
 
+        self._config = Config().load()
+        self._build_ui(root)
 
-        self._init_buttons()
-        self.render_buttons()
+    def _build_ui(self, root):
+        def top_frame(frame):
+            frame.pack(fill="both", expand=False)
 
+            frame.columnconfigure(0, weight=1)
+            frame.columnconfigure(1, weight=0)
+            frame.columnconfigure(2, weight=1)
 
-        # self._load_images()
-    def create_things(self):
-        for widget in self.container_frame.winfo_children():
+            center_frame = ttk.Frame(frame)
+            center_frame.grid(row=0, column=1)
+
+            label_project_code = ttk.Label(center_frame, text="Código de proyecto:")
+            label_project_code.grid(row=0, column=0, padx=10, pady=5)
+
+            self.project_code = tk.StringVar()
+            self.project_code.trace_add("write", self._update_start_button_state)
+
+            self.entry_project_code = ttk.Entry(center_frame, textvariable=self.project_code)
+            self.entry_project_code.grid(row=0, column=1, padx=10, pady=5)
+
+            self.project_folder = tk.StringVar(value=self._get_project_folder())
+            self.label_project_folder = ttk.Label(center_frame, textvariable=self.project_folder)
+            self.label_project_folder.grid(row=0, column=2, padx=10, pady=5, sticky="ew")
+
+            self.button_project_folder = ttk.Button(center_frame, text="Elegir carpeta", command=lambda: (self._select_project_folder(), self._reset_min_size()))
+            self.button_project_folder.grid(row=0, column=3, padx=10, pady=5)
+
+            self.label_warning = ttk.Label(center_frame, text="Los campos no podrán modificarse una vez empezado el proyecto.", font=styles.FONT_DEFAULT_ITALIC)
+            self.label_warning.grid(row=1, columnspan=4, padx=10, pady=5)
+
+        for widget in root.winfo_children():
             widget.destroy()
 
-        self.canvas = tk.Canvas(self.container_frame, bd=0, highlightthickness=0)
-        self.canvas.pack(in_=self.container_frame, fill="both", expand=True)
-        self.scrollbar = ttk.Scrollbar(self.container_frame, orient=tk.VERTICAL, command=self.canvas.yview)
-        self.scrollbar.pack(side="right", fill=tk.Y)
-        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+        Ui.menu(self.root, [
+            {
+                "label": "Nuevo",
+                "command": self._reset
+            },
+            {
+                "label": "Cargar proyecto",
+                "command": lambda: print("Cargar proyecto")
+            },
+            {
+                "label": "Menú principal",
+                "command": self.go_back_callback
+            }
+        ])
 
-        self._bind_mouse_scroll_events()
-        self._bind_resize_events()
+        self.wrapper = ttk.Frame(root)
+        self.wrapper.pack(fill="both", expand=True)
+        top_frame(ttk.Frame(self.wrapper))
 
-        self.scrollbar_visible = False
+        self.container_frame = ttk.Frame(self.wrapper, padding=20)
+        self.container_frame.pack(fill="x", expand=True)
+        self.container_frame.grid_rowconfigure(0, weight=1)
+        self.container_frame.grid_rowconfigure(2, weight=1)
+        self.container_frame.grid_columnconfigure(0, weight=1)
+        self.container_frame.grid_columnconfigure(2, weight=1)
 
-        self.main_frame = ttk.Frame(self.canvas, padding=0)
-        self.content_window = self.canvas.create_window((0, 0), window=self.main_frame, anchor="nw")
+        self._init_buttons()
+        self._render_buttons()
+        self._reset_min_size()
 
-        self.header_frame = ttk.Frame(self.main_frame, padding=0)
-        self.header_frame.grid(row=0, column=1, sticky="nw")
-        self.side_frame = ttk.Frame(self.main_frame, padding=0)
-        self.side_frame.grid(row=1, column=0, sticky="ew")
-        self.content_frame = ttk.Frame(self.main_frame, padding=0)
-        self.content_frame.grid(row=1, column=1, sticky="nsew")
+    def _reset(self):
+        self._build_ui(self.root)
 
-        self._center_content()
-        self.canvas.update_idletasks()
+    def _get_project_folder(self):
+        return self._config.get("multi_scan", {}).get("folder", None)
 
-        self.main_frame.bind("<Configure>", self.update_scroll_region)
-        self._last_geometry = ""
-        self._poll_for_resize()
-
-
-    def _setup_styles(self):
-        style = ttk.Style()
-
-
-    def _build_menu(self):
-        menu_bar = tk.Menu(self.root, bg="#2e2e2e")
-
-        options_menu = tk.Menu(menu_bar, tearoff=tk.OFF)
-        options_menu.add_command(label="Nuevo", command=self.reset)
-        options_menu.add_command(label="Abrir carpeta", command=lambda: print("Option 2 selected"))
-        options_menu.add_separator()
-        options_menu.add_command(label="Exit", command=self.root.quit)
-
-        menu_bar.add_cascade(label="Menú", menu=options_menu)
-
-        self.root.config(menu=menu_bar)
-
-    def _build_top_frame(self):
-        self.top_frame = ttk.Frame(self.wrapper)
-        self.top_frame.pack(side="top", fill="x")
-
-        self.top_frame.columnconfigure(0, weight=1)
-        self.top_frame.columnconfigure(1, weight=0)
-        self.top_frame.columnconfigure(2, weight=1)
-
-        center_frame = ttk.Frame(self.top_frame)
-        center_frame.grid(row=0, column=1)
-
-        ttk.Label(center_frame, text="Código de mapa:").grid(row=0, column=0, padx=10, pady=5)
-        self.map_code = tk.StringVar()
-        self.map_code.trace_add("write", lambda *args: self._update_start_button_state())
-
-        self.map_code_entry = ttk.Entry(center_frame, textvariable=self.map_code)
-        self.map_code_entry.grid(row=0, column=1, padx=10, pady=5)
-
-    def _bind_mouse_scroll_events(self):
-        self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)  # Windows/macOS
-        self.canvas.bind_all("<Button-4>", self._on_mousewheel)    # Linux scroll up
-        self.canvas.bind_all("<Button-5>", self._on_mousewheel)    # Linux scroll down
-        self.canvas.bind("<Configure>", self._center_content)
-
-    def _bind_resize_events(self):
-        self.root.bind("<Configure>", self._on_resize)
-
-    def reset(self):
-        pass
-
-
-    def _center_content(self, event=None):
-        self.canvas.update_idletasks()
-        canvas_width = self.canvas.winfo_width()
-        canvas_height = self.canvas.winfo_height()
-        content_width = self.main_frame.winfo_reqwidth()
-        content_height = self.main_frame.winfo_reqheight()
-        x = max((canvas_width - content_width) // 2, 0)
-        y = max((canvas_height - content_height) // 2, 0)
-        self.canvas.coords(self.content_window, x, y)
-
-    def _on_resize(self, event):
-        window_height = self.root.winfo_height()
-        self.canvas.config(height=window_height)
-        self.update_scroll_region(event)
-        self._center_content()
-
-    def update_scroll_region(self, event):
-        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-        content_height = self.canvas.bbox("all")[3]
-        canvas_height = self.canvas.winfo_height()
-
-        if content_height > canvas_height:
-            if not self.scrollbar_visible:
-                self.scrollbar.pack(side="right", fill="y")
-                self.scrollbar_visible = True
-        else:
-            if self.scrollbar_visible:
-                self.scrollbar.pack_forget()
-                self.scrollbar_visible = False
-
-        self._center_content()
-
-    def _on_mousewheel(self, event):
-        if not self.scrollbar_visible:
-            return
-        if event.num == 4:
-            self.canvas.yview_scroll(-1, "units")
-        elif event.num == 5:
-            self.canvas.yview_scroll(1, "units")
-        else:
-            direction = -1 if event.delta > 0 else 1
-            self.canvas.yview_scroll(direction, "units")
-
-    def _update_window_size(self):
-        self.root.update_idletasks()
-        width = self.main_frame.winfo_reqwidth()
-        height = self.main_frame.winfo_reqheight()
-        current_width = self.root.winfo_width()
-        current_height = self.root.winfo_height()
-
-        if width > current_width:
-            self.root.geometry(f"{width}x{current_height}")
-        if height > current_height:
-            self.root.geometry(f"{current_width}x{height}")
-        self.root.minsize(width, self.min_height)
-
-    def _poll_for_resize(self):
-        current_geometry = self.root.geometry()
-        if current_geometry != self._last_geometry:
-            self._last_geometry = current_geometry
-            self._center_content()
-            self.update_scroll_region(None)
-        self.root.after(200, self._poll_for_resize)
-
-    def _make_grid_button(self, text, command):
-        return tk.Button(
-            self.content_frame,
-            image=self.image_cache.get("test"),
-            command=command,
-            # width=self.button_pixel_size[0] // 7,
-            # height=self.button_pixel_size[1] // 15,
-            width=self.button_pixel_size[0],
-            height=self.button_pixel_size[1],
-            font=("Helvetica", 18),
-            bg="#000000",
-            borderwidth=0,
-            highlightthickness=0
-        )
-
-    def _make_plus_button(self, text, command):
-        plus_button_frame = tk.Frame(self.content_frame, width=self.button_pixel_size[0], height=self.button_pixel_size[1])
-        plus_button_frame.pack_propagate(False)
-        plus_button = tk.Button(
-            plus_button_frame,
-            text=text,
-            command=command,
-            width=self.button_pixel_size[0] // 7,
-            height=self.button_pixel_size[1] // 15,
-            font=("Helvetica", 18),
-            borderwidth=0,
-            highlightthickness=0,
-        )
-        plus_button.pack(fill="both", expand=True)
-        return plus_button_frame
+    def _select_project_folder(self):
+        folder = filedialog.askdirectory()
+        if folder:
+            self.project_folder.set(Path(folder))
 
     def _init_buttons(self):
         self.buttons = {
@@ -243,17 +122,7 @@ class MapView:
             ButtonType.ROW: {"display": False, "fn": self._render_next_row_button, "button": None},
         }
 
-    def render_buttons(self):
-        # button = ttk.Button(
-        #     self.container_frame,
-        #     text="Comenzar",
-        #     command=lambda: (self._on_start_clicked()),
-        #     style="Big.TButton",
-        #     state="disabled"
-        # )
-        # button.grid(row=1, column=1, sticky="nsew")
-        # # button.pack(fill="both", expand=True)
-        # return
+    def _render_buttons(self):
         for key, value in self.buttons.items():
             display = value.get("display", False)
             if display:
@@ -280,42 +149,214 @@ class MapView:
             self.buttons[key]["button"] = None
 
     def _render_start_button(self):
-        # self.root.resizable(False, False)
-        # return
         button = ttk.Button(
             self.container_frame,
             text="Comenzar",
-            command=lambda: (self._on_start_clicked()),
+            command=self._on_start_clicked,
             style="Big.TButton",
             state="disabled"
         )
-        # button.grid(row=0, column=0)
-        button.grid(row=1, column=1, sticky="nsew")
+        button.grid(row=1, column=1, pady=80, sticky="nsew")
         self.buttons[ButtonType.START]["button"] = button
 
-    def _update_start_button_state(self):
-        if self.map_code.get().strip():
+    def _on_start_clicked(self):
+        self.entry_project_code.config(state="disabled")
+        self._scan(0, 0)
+
+    def _update_start_button_state(self, *args):
+        if self.project_code.get().strip():
             self.buttons[ButtonType.START]["button"].config(state="normal")
         else:
             self.buttons[ButtonType.START]["button"].config(state="disabled")
 
-    def _on_start_clicked(self):
-        self.map_code_entry.config(state="disabled")
-        self.scan(0, 0)
-
-        # self.add_cell()
-
     def _render_next_col_button(self):
-        button = self._make_plus_button("+", self.add_cell)
-        # ToolTip(button, "Nueva columna")
+        button = self._make_plus_button("+\n(c)ol.", self.add_cell)
         self.buttons[ButtonType.COL]["button"] = button
 
     def _render_next_row_button(self):
-        button = self._make_plus_button("+", lambda: self.add_cell(row=True))
-        # ToolTip(button, "Nueva fila")
+        button = self._make_plus_button("+\n(f)ila", lambda: self.add_cell(row=True))
         self.buttons[ButtonType.ROW]["button"] = button
 
-    def scan(self, row, col):
+    def _make_plus_button(self, text, command):
+        plus_button_frame = tk.Frame(self.content_frame, width=self.button_pixel_size[0], height=self.button_pixel_size[1])
+        plus_button_frame.pack_propagate(False)
+        plus_button = tk.Button(
+            plus_button_frame,
+            text=text,
+            command=command,
+            width=self.button_pixel_size[0] // 7,
+            height=self.button_pixel_size[1] // 15,
+            font=styles.MAP_PLUS_BUTTON,
+            borderwidth=0,
+            highlightthickness=0,
+        )
+        plus_button.pack(fill="both", expand=True)
+        return plus_button_frame
+
+    def _make_grid_button(self, text, command):
+        return tk.Button(
+            self.content_frame,
+            image=self.image_cache.get("test"),
+            command=command,
+            width=self.button_pixel_size[0],
+            height=self.button_pixel_size[1],
+            font=("Helvetica", 18),
+            bg="#000000",
+            borderwidth=0,
+            highlightthickness=0
+        )
+
+    def _update_column_headers(self):
+        # Clear old headers
+        for widget in self.header_frame.winfo_children():
+            widget.destroy()
+        # Reset column weights to ensure proper spacing
+        for col in range(self.cols):
+            self.header_frame.grid_columnconfigure(col, weight=0, minsize=self.button_pixel_size[0])
+        # Define bold, larger font
+        header_font = tkfont.Font(weight="bold", size=12)  # Increase size as needed
+        for col in range(self.cols):
+            label = ttk.Label(
+                self.header_frame,
+                text=col + 1,
+                anchor="center",
+                font=header_font
+            )
+            label.grid(row=0, column=col, sticky="nsew", padx=2, pady=2)
+
+    def _update_row_headers(self):
+        # Clear old headers
+        for widget in self.side_frame.winfo_children():
+            widget.destroy()
+        # Reset row weights and sizes
+        for row in range(self.rows):
+            self.side_frame.grid_rowconfigure(row, weight=0, minsize=self.button_pixel_size[1])
+        # Define bold, larger font
+        header_font = tkfont.Font(weight="bold", size=12)
+        extra_row = self.buttons[ButtonType.ROW]["display"]
+        for row in range(self.rows):
+            label = ttk.Label(
+                self.side_frame,
+                text=utils.alpha_converter(row),
+                anchor="center",
+                font=header_font
+            )
+            if extra_row:
+                label.grid(row=row, column=0, sticky="n", padx=6, pady=2)
+            else:
+                label.grid(row=row, column=0, sticky="nsew", padx=6, pady=2)
+        if extra_row:
+            ttk.Label(
+                self.side_frame,
+                anchor="center",
+                font=header_font
+            ).grid(row=self.rows, column=0, sticky="n", padx=6, pady=2)
+
+    # Resize and scroll related events
+    def _reset_min_size(self):
+        self.root.update_idletasks()
+        width = self.root.winfo_reqwidth()
+        height = self.root.winfo_reqheight()
+        self.root.minsize(width, height)
+
+    def _on_mousewheel(self, event):
+        if not self.scrollbar_visible:
+            return
+        if event.num == 4:
+            self.canvas.yview_scroll(-1, "units")
+        elif event.num == 5:
+            self.canvas.yview_scroll(1, "units")
+        else:
+            direction = -1 if event.delta > 0 else 1
+            self.canvas.yview_scroll(direction, "units")
+
+    def _center_content(self, event=None):
+        self.canvas.update_idletasks()
+        canvas_width = self.canvas.winfo_width()
+        canvas_height = self.canvas.winfo_height()
+        content_width = self.main_frame.winfo_reqwidth()
+        content_height = self.main_frame.winfo_reqheight()
+        x = max((canvas_width - content_width) // 2, 0)
+        y = max((canvas_height - content_height) // 2, 0)
+        self.canvas.coords(self.content_window, x, y)
+
+    def _bind_mouse_scroll_events(self):
+        self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)  # Windows/macOS
+        self.canvas.bind_all("<Button-4>", self._on_mousewheel)    # Linux scroll up
+        self.canvas.bind_all("<Button-5>", self._on_mousewheel)    # Linux scroll down
+        # self.canvas.bind("<Configure>", self._center_content)
+
+    def _bind_resize_events(self):
+        self.root.bind("<Configure>", self._on_resize)
+
+    def _on_resize(self, event):
+        if self.main_frame:
+            required_height = self.main_frame.winfo_reqheight()
+            required_width = self.main_frame.winfo_reqwidth()
+            self.canvas.config(height=required_height, width=required_width)
+        self._update_scroll_region(event)
+            # self._reset_min_size()
+        self._center_content()
+
+    def _update_scroll_region(self, event):
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        content_height = self.canvas.bbox("all")[3]
+        canvas_height = self.canvas.winfo_height()
+
+        if content_height > canvas_height:
+            if not self.scrollbar_visible:
+                self.scrollbar.pack(side="right", fill="y")
+                self.scrollbar_visible = True
+        else:
+            if self.scrollbar_visible:
+                self.scrollbar.pack_forget()
+                self.scrollbar_visible = False
+
+        # self._center_content()
+
+
+
+
+
+
+
+
+
+    def _create_grid(self):
+        for widget in self.container_frame.winfo_children():
+            widget.destroy()
+
+        self.canvas = tk.Canvas(self.container_frame, bd=0, highlightthickness=2, highlightbackground="black")
+        self.canvas.pack(in_=self.container_frame, fill="both", expand=True)
+
+        self.scrollbar = ttk.Scrollbar(self.container_frame, orient=tk.VERTICAL, command=self.canvas.yview)
+        self.scrollbar.pack(side="right", fill=tk.Y)
+
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+
+        self._bind_mouse_scroll_events()
+        self._bind_resize_events()
+
+        self.scrollbar_visible = False
+
+        self.main_frame = ttk.Frame(self.canvas, padding=0)
+        self.content_window = self.canvas.create_window((0, 0), window=self.main_frame, anchor="nw")
+
+        self.header_frame = ttk.Frame(self.main_frame, padding=0)
+        self.header_frame.grid(row=0, column=1, sticky="nw")
+        self.side_frame = ttk.Frame(self.main_frame, padding=0)
+        self.side_frame.grid(row=1, column=0, sticky="ew")
+        self.content_frame = ttk.Frame(self.main_frame, padding=0)
+        self.content_frame.grid(row=1, column=1, sticky="nsew")
+
+        # self._center_content()
+        # self.canvas.update_idletasks()
+
+        # self.main_frame.bind("<Configure>", self._update_scroll_region)
+        # self._last_geometry = ""
+        # self._poll_for_resize()
+
+    def _scan(self, row, col):
         filename = f"./{row}-{col}.png"
         # self.scan_button.config(state="disabled")
         # self.status_label.config(text="Escaneando...")
@@ -339,7 +380,8 @@ class MapView:
             # self.state.prefix = self.prefix.get()
             # self.state.folder = self.folder.get()
             # self.state.save_config()
-            self.create_things()
+            self._create_grid()
+            return
 
             self.root.after(0, lambda: (
                 self._load_images(filename),
@@ -404,11 +446,14 @@ class MapView:
 
         self.rows = len(self.grid)
         self.cols = max(len(row) for row in self.grid)
-        self.render_buttons()
+        self._render_buttons()
         self._update_column_headers()
         self._update_row_headers()
+        # self._update_window_size()
 
-        self._update_window_size()
+
+
+
 
     def _make_callback(self, r, c):
         return self._show_full_image
@@ -460,60 +505,48 @@ class MapView:
         resized = cropped.resize(self.button_pixel_size, Image.Resampling.LANCZOS)
         self.image_cache["test"] = ImageTk.PhotoImage(resized)
 
+    # # def set_scan_folder(self, folder):
+    # #     Config().set_scan_folder(folder)
+    #     # self._load_images()
 
 
-    def _update_column_headers(self):
-        # Clear old headers
-        for widget in self.header_frame.winfo_children():
-            widget.destroy()
 
-        # Reset column weights to ensure proper spacing
-        for col in range(self.cols):
-            self.header_frame.grid_columnconfigure(col, weight=0, minsize=self.button_pixel_size[0])
 
-        # Define bold, larger font
-        header_font = tkfont.Font(weight="bold", size=12)  # Increase size as needed
 
-        for col in range(self.cols):
-            label = ttk.Label(
-                self.header_frame,
-                text=col + 1,
-                anchor="center",
-                font=header_font
-            )
-            label.grid(row=0, column=col, sticky="nsew", padx=2, pady=2)
 
-    def _update_row_headers(self):
-        # Clear old headers
-        for widget in self.side_frame.winfo_children():
-            widget.destroy()
 
-        # Reset row weights and sizes
-        for row in range(self.rows):
-            self.side_frame.grid_rowconfigure(row, weight=0, minsize=self.button_pixel_size[1])
 
-        # Define bold, larger font
-        header_font = tkfont.Font(weight="bold", size=12)
 
-        extra_row = self.buttons[ButtonType.ROW]["display"]
 
-        for row in range(self.rows):
-            label = ttk.Label(
-                self.side_frame,
-                text=utils.alpha_converter(row),
-                anchor="center",
-                font=header_font
-            )
-            if extra_row:
-                label.grid(row=row, column=0, sticky="n", padx=6, pady=2)
-            else:
-                label.grid(row=row, column=0, sticky="nsew", padx=6, pady=2)
 
-        if extra_row:
-            ttk.Label(
-                self.side_frame,
-                anchor="center",
-                font=header_font
-            ).grid(row=self.rows, column=0, sticky="n", padx=6, pady=2)
+
+
+
+
+
+
+
+
+
+    # def _poll_for_resize(self):
+    #     current_geometry = self.root.geometry()
+    #     if current_geometry != self._last_geometry:
+    #         self._last_geometry = current_geometry
+    #         self._center_content()
+    #         self._update_scroll_region(None)
+    #     self.root.after(200, self._poll_for_resize)
+
+    # def _update_window_size(self):
+        # self.root.update_idletasks()
+        # width = self.main_frame.winfo_reqwidth()
+        # height = self.main_frame.winfo_reqheight()
+        # current_width = self.root.winfo_width()
+        # current_height = self.root.winfo_height()
+
+        # if width > current_width:
+        #     self.root.geometry(f"{width}x{current_height}")
+        # if height > current_height:
+        #     self.root.geometry(f"{current_width}x{height}")
+        # self.root.minsize(width, self.min_height)
 
 

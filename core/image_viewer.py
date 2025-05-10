@@ -1,6 +1,5 @@
-import os, shutil
+import os
 import tkinter as tk
-from tkinter import filedialog
 from PIL import Image, ImageTk
 import numpy as np
 from core.constants import APP_TITLE, VIEWER_VIEW_TITLE
@@ -41,9 +40,11 @@ class ImageViewer(tk.Frame):
 
         if self.is_main_window:
             self.pack(expand=True, fill=tk.BOTH)
-            master.bind("<Configure>", self._on_resize)  # Bind to top-level ImageViewer.
+            # Bind to top-level ImageViewer.
+            master.bind("<Configure>", self._on_resize)
         else:
-            self.bind("<Configure>", self._on_resize)    # Bind to self when embedded.
+            # Bind to self when embedded.
+            self.bind("<Configure>", self._on_resize)
 
     def set_image(self, filepath=None):
         if not filepath:
@@ -52,7 +53,6 @@ class ImageViewer(tk.Frame):
         self.pil_image = Image.open(filepath)
         self.filepath.set(filepath)
         self._zoom_fit()
-        # self._draw_image(self.pil_image)
 
         if self.is_main_window:
             filename = os.path.basename(filepath)
@@ -64,7 +64,6 @@ class ImageViewer(tk.Frame):
     def _on_resize(self, event):
         if self.pil_image:
             self._zoom_fit()
-            # self._redraw_image()
 
     def _create_canvas(self):
         self.canvas = tk.Canvas(self.layout_frame, background="black", bd=0, highlightthickness=0)
@@ -93,17 +92,11 @@ class ImageViewer(tk.Frame):
 
         self.filepath.trace_add("write", update_status_bar)
 
-
     def _visor_mode_bindings(self):
         self.canvas.bind("<Button-1>", self._mouse_press_left)
         self.canvas.bind("<B1-Motion>", self._mouse_move_left)
         self.canvas.bind("<Double-Button-1>", self._mouse_double_click_left)
         self.canvas.bind("<MouseWheel>", self._mouse_wheel)
-
-
-
-
-
 
     def _menu_quit_clicked(self, event):
         self.master.destroy()
@@ -143,13 +136,6 @@ class ImageViewer(tk.Frame):
                 return
             self._redraw_image()
 
-
-
-
-
-
-
-
     def _reset_transform(self):
         self.mat_affine = np.eye(3)
 
@@ -171,12 +157,23 @@ class ImageViewer(tk.Frame):
         self._scale(scale)
         self._translate(cx, cy)
 
+    def _on_canvas_ready(self):
+        if self.canvas.winfo_width() > 1 and self.canvas.winfo_height() > 1:
+            self._zoom_fit()
+        else:
+            self.after(50, self._on_canvas_ready)
+
     def _zoom_fit(self):
         image_width, image_height = self.pil_image.width, self.pil_image.height
         canvas_width, canvas_height = self.canvas.winfo_width(), self.canvas.winfo_height()
 
+        # if canvas_width <= 1 or canvas_height <= 1:
+        #     self.root.after(100, self._zoom_fit)
+        #     return
+
         if (image_width * image_height <= 0) or (canvas_width * canvas_height <= 0):
             return
+
         self._reset_transform()
 
         scale, offsetx, offsety = self._compute_scale_and_offset()
@@ -210,40 +207,6 @@ class ImageViewer(tk.Frame):
         if pil_image is None:
             return
 
-
-        # if canvas_width <= 1 or canvas_height <= 1:
-        #     self.root.after(100, self.update_display_image)
-        #     return
-
-        # img_width, img_height = self.pil_image.size
-        # ratio = min(canvas_width / img_width, canvas_height / img_height)
-        # new_width, new_height = int(img_width * ratio), int(img_height * ratio)
-
-        # resized_img = self.fast_resize_pil(self.image, new_width, new_height)
-
-        # # img_cv = cv2.resize(np.array(self.image), (new_w, new_h))
-        # # self.display_image = Image.fromarray(img_cv)
-        # # self.tk_image = ImageTk.PhotoImage(self.display_image)
-
-        # self.display_image = resized_img
-        # self.tk_image = ImageTk.PhotoImage(resized_img)
-
-        # self.canvas.delete("all")
-        # # self.canvas.create_image(w // 2, h // 2, image=self.tk_image, anchor="center")
-        # self.canvas.create_image((canvas_width - new_width) // 2, (canvas_height - new_height) // 2,
-        #                          image=self.tk_image, anchor="nw")
-
-        # self.img_offset_x = (canvas_width - new_width) // 2
-        # self.img_offset_y = (canvas_height - new_height) // 2
-        # self.img_scale_x = self.image.width / new_width
-        # self.img_scale_y = self.image.height / new_height
-
-
-
-
-
-
-
         self.pil_image = pil_image
         canvas_width = self.canvas.winfo_width()
         canvas_height = self.canvas.winfo_height()
@@ -268,13 +231,22 @@ class ImageViewer(tk.Frame):
     def _redraw_image(self):
         if self.pil_image is None:
             return
-
         # Fast redraw with NEAREST
         self._draw_image(self.pil_image, resample=Image.NEAREST)
-
         # Cancel any previously scheduled high-quality redraw
         if self.hq_render_after_id:
             self.after_cancel(self.hq_render_after_id)
-
         # Schedule a high-quality redraw after 300 ms
         self.hq_render_after_id = self.after(300, lambda: self._draw_image(self.pil_image, resample=Image.BICUBIC))
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Simple responsive image viewer.")
+    parser.add_argument("image", help="Path to the image file.")
+    args = parser.parse_args()
+
+    root = tk.Tk()
+    app = ImageViewer(master=root, filepath=args.image)
+
+    app.mainloop()
