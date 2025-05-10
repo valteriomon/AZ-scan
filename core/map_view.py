@@ -15,27 +15,15 @@ from tkinter import ttk, messagebox, filedialog
 from PIL import Image, ImageTk
 
 # TODO
-# - Button enabling/disabling
-
-# - Status messaging (set "Scanning" in status bar and disable next scan buttons until completed)
-# - Image rotation
-# - Key binds
-# - Folder creation
-# - Actions, events... (left click menu: Open, Rescan)
-# - Project load
-# - Save scanned file with filename according to prefix code + matrix position
-#     - Create new folder with project code
-# - Re-scan specific matrix position
-#     - Warn if file exists will be overriden
-# - Catch scanner error
-# - Join/create PTO
-# - Add patch image to project button: place in right place
-# - Stitcher view
-# - Open existing project
-# - Rotate (90 degrees) scan and save
+# - Right click action: View
+# - Right click action: Rescan
+# - Right click action: Rotation and reload
+# - Save project folder to yaml
 # - Rotate all images at once
-# - All (that arent rotated already) or pick which ones
-# - Add help, shortcuts, info on how to use
+#   - All (that arent rotated already) or pick which ones
+# - Open existing project
+#     - Warn if file exists will be overriden
+# - Check filename saving name (alphanumeric)
 
 class ButtonType(Enum):
     START = "start"
@@ -61,10 +49,18 @@ class MapView:
         self._reset()
 
     def _bind_keys(self):
-        self.root.bind("<Key-c>", lambda e: print("Lowercase c"))
-        self.root.bind("<Key-C>", lambda e: print("Uppercase C"))
-        self.root.bind("<Key-f>", lambda e: print("Lowercase f"))
-        self.root.bind("<Key-F>", lambda e: print("Uppercase F"))
+        self.root.bind("<Key-c>", self._on_key_c)
+        self.root.bind("<Key-C>", self._on_key_c)
+        self.root.bind("<Key-f>", self._on_key_f)
+        self.root.bind("<Key-F>", self._on_key_f)
+
+    def _on_key_c(self, event):
+        if getattr(self, "col_scan_enabled", False):
+            self._scan_next()
+
+    def _on_key_f(self, event):
+        if getattr(self, "row_scan_enabled", False):
+            self._scan_next(new_row=True)
 
     def _build_ui(self, root):
         def top_frame(frame):
@@ -85,14 +81,15 @@ class MapView:
             self.project_code.trace_add("write", self._on_project_code_change)
 
             self.entry_project_code = ttk.Entry(center_frame, textvariable=self.project_code, width=10)
-            self.entry_project_code.grid(row=0, column=1, padx=(5, 30), pady=5)
+            self.entry_project_code.grid(row=0, column=1, padx=(5, 60), pady=5)
 
-            self.project_folder = tk.StringVar(value=self._get_project_folder())
+            self.base_project_folder = self._get_project_folder()
+            self.project_folder = tk.StringVar(value=self.base_project_folder)
             self.label_project_folder = ttk.Label(center_frame, textvariable=self.project_folder)
-            self.label_project_folder.grid(row=0, column=2, padx=10, pady=5, sticky="ew")
+            self.label_project_folder.grid(row=0, column=2, padx=5, pady=5, sticky="ew")
 
             self.button_project_folder = ttk.Button(center_frame, text="Elegir carpeta", command=lambda: (self._select_project_folder(), self._reset_min_size()), width=16, padding=1)
-            self.button_project_folder.grid(row=0, column=3, padx=10, pady=5)
+            self.button_project_folder.grid(row=0, column=3, padx=5, pady=5)
 
             self.label_warning = ttk.Label(center_frame, text="Los campos no podrán modificarse una vez empezado el proyecto.\nSe creará una carpeta con el código ingresado.", font=styles.FONT_DEFAULT_ITALIC, justify="center")
             self.label_warning.grid(row=1, columnspan=4, padx=10, pady=5)
@@ -126,16 +123,11 @@ class MapView:
         self.container_frame.grid_columnconfigure(0, weight=1)
         self.container_frame.grid_columnconfigure(2, weight=1)
 
+        self.status_bar = tk.Label(self.wrapper, text="Listo para escanear.", anchor="w", bg="#cccccc", fg="#171717", padx=5, pady=4)
+        self.status_bar.pack(side="bottom", fill="x")
+
         self._init_buttons()
         self._render_buttons()
-        self._reset_min_size()
-
-        # --- Status bar ---
-        self.bottom_frame = ttk.Frame(root)
-        self.bottom_frame.pack(side="bottom", fill="x")
-
-        self.status_bar = tk.Label(self.bottom_frame, text="Listo para escanear.", anchor="w", bg="#cccccc", fg="#171717", padx=5, pady=2)
-        self.status_bar.pack(side="bottom", fill="x")
 
     def _reset(self):
         self.root.unbind("<Configure>")
@@ -150,6 +142,7 @@ class MapView:
         self.buttons = {}
         self.image_cache = {}
         self._build_ui(self.root)
+        self._reset_min_size()
 
     def _get_project_folder(self):
         project_folder = self._config.get("multi_scan", {}).get("folder", None)
@@ -159,15 +152,14 @@ class MapView:
             return os.path.expanduser("~")
 
     def _on_project_code_change(self, *args):
-        print(args)
         self._update_start_button_state()
-        folder = self._get_project_folder()
-        self.project_folder.set(f"{folder}{os.path.sep}{self.project_code.get()}")
+        self.project_folder.set(f"{self.base_project_folder}{os.path.sep}{self.project_code.get()}")
 
     def _select_project_folder(self):
         folder = filedialog.askdirectory()
         if folder:
-            self.project_folder.set(f"{Path(folder)}{os.path.sep}{self.project_code.get()}")
+            self.base_project_folder = Path(folder)
+            self.project_folder.set(f"{self.base_project_folder}{os.path.sep}{self.project_code.get()}")
 
     def _open_project_folder(self):
         Console.open_folder(self.project_folder.get())
@@ -213,11 +205,8 @@ class MapView:
             style="Big.TButton",
             state="disabled"
         )
-        button.grid(row=1, column=1, pady=80, sticky="nsew")
+        button.grid(row=1, column=1, pady=(60,80), sticky="nsew")
         self.buttons[ButtonType.START]["button"] = button
-
-    def _disable_buttons(self):
-        pass
 
     def _on_start_clicked(self):
         self.entry_project_code.config(state="disabled")
@@ -237,12 +226,14 @@ class MapView:
             self.buttons[ButtonType.START]["button"].config(state="disabled")
 
     def _render_next_col_button(self):
-        button = self._make_plus_button("+\n(c)ol.", self._scan_next)
+        button = self._make_plus_button("+\ncol.", self._scan_next)
         self.buttons[ButtonType.COL]["button"] = button
+        self.col_scan_enabled = True
 
     def _render_next_row_button(self):
-        button = self._make_plus_button("+\n(f)ila", lambda: self._scan_next(new_row=True))
+        button = self._make_plus_button("+\nfila", lambda: self._scan_next(new_row=True))
         self.buttons[ButtonType.ROW]["button"] = button
+        self.row_scan_enabled = True
 
     def _make_plus_button(self, text, command):
         plus_button_frame = tk.Frame(self.content_frame, width=self.button_pixel_size[0], height=self.button_pixel_size[1])
@@ -257,7 +248,8 @@ class MapView:
             borderwidth=0,
             highlightthickness=0,
             pady=0,
-            padx=0
+            padx=0,
+            underline=2
         )
         plus_button.pack(fill="both", expand=True)
         return plus_button_frame
@@ -392,6 +384,9 @@ class MapView:
         if not self.grid:
             self._reset_min_size()
 
+        self.col_scan_enabled = False
+        self.row_scan_enabled = False
+
         self.container_frame = ttk.Frame(self.wrapper, padding=20)
         self.container_frame.pack(fill="x", expand=True)
         self.container_frame.grid_rowconfigure(0, weight=1)
@@ -487,14 +482,15 @@ class MapView:
 
     def _make_double_click_callback(self, r, c):
         def callback(event):
-            filepath = f"{self.project_folder.get()}/{self.project_code.get()}_{r+1}-{c+1}.{self._filetype}"
-            self._view_scan(filepath)
+            self._view_scan(self._get_file_path(r, c))
         return callback
 
     def _make_right_click_menu(self, r, c):
         menu = tk.Menu(self.root, tearoff=0)
-        menu.add_command(label="Option A", command=lambda: print(f"Option A at {r}, {c}"))
-        menu.add_command(label="Option B", command=lambda: print(f"Option B at {r}, {c}"))
+        menu.add_command(label="Ver", command=lambda: self._view_scan(self._get_file_path(r, c)))
+        menu.add_command(label="Re-escanear", command=lambda: self._rescan(self._get_file_path(r, c)))
+        menu.add_command(label="⟳ Rotar 90°", command=lambda: print(f"Option B at {r}, {c}"))
+        menu.add_command(label="⟲ Rotar -90°", command=lambda: print(f"Option B at {r}, {c}"))
         return menu
 
     def _cache_thumbnails(self, filepath, filename, row, col):
@@ -514,6 +510,9 @@ class MapView:
         self.image_cache[f"{row}-{col}"] = ImageTk.PhotoImage(resized)
         print(self.image_cache)
 
+    def _get_file_path(self, row, col):
+        return f"{self.project_folder.get()}/{self.project_code.get()}_{row+1}-{col+1}.{self._filetype}"
+
     def _scan_next(self, new_row=False):
         if new_row:
             next_row = self.rows + 1
@@ -530,33 +529,29 @@ class MapView:
         self._scan(next_row, next_col, new_row=new_row)
 
     def _scan(self, row, col, new_row=False):
+        if self.scanning:
+            print("Already scanning")
+            return
         project_folder = self.project_folder.get()
         project_code = self.project_code.get()
         filename = f"{project_code}_{row}-{col}.{self._filetype}"
         filepath = f"{project_folder}/{filename}"
         self.status_bar.config(text="Escaneando...")
-        # self.scan_button.config(state="disabled")
         def do_scan():
             try:
                 self.scanning = True
                 Console().scan(filepath)
                 self.status_bar.config(text="Escaneo finalizado. Listo para escanear.")
-                # self.state.prefix = self.prefix.get()
-                # self.state.folder = self.folder.get()
-                # self.state.save_config()
                 if not self.grid:
                     self._create_grid()
+                    self.label_warning.config(text="Atajos de teclado: (c) para escanear columnas, (f) para escanear filas.")
+                    self._bind_keys()
 
                 self.root.after(0, lambda: (
                     self._cache_thumbnails(filepath, filename, row, col),
                     self._add_cell(new_row)
                 ))
-                # self.root.after(0, lambda: self.scan_button.config(state="normal"))
-                # self.root.after(0, lambda: self.status_label.config(text="Escaneo finalizado. Listo para escanear."))
-
             except FileAlreadyExistsError as e:
-                # self.root.after(0, lambda: self.scan_button.config(state="normal"))
-                # self.root.after(0, lambda: self.status_label.config(text=""))
                 self.root.after(0, lambda: messagebox.showerror(
                     "Error",
                     f"El siguiente archivo que se intenta crear ya existe:\n\n{filepath}\n\n"
@@ -567,28 +562,8 @@ class MapView:
                 self.scanning = False
         threading.Thread(target=do_scan, daemon=True).start()
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    def _update_helper_label():
-        pass
-
-
-
-
+    def _rescan(self, filepath):
+        self._scan(filepath)
 
     def _view_scan(self, filepath):
         viewer = tk.Toplevel(self.root)
@@ -597,19 +572,31 @@ class MapView:
         viewer = ImageViewer(viewer, image_filename)
 
 
-        # viewer_window = tk.Toplevel(self.root)  # Use Toplevel instead of creating a new root
-        # viewer = ImageViewer(master=viewer_window)
-
-        # top.geometry("600x400")
-        # viewer = ImageViewer(master=top)
-        # viewer.pack(fill=tk.BOTH, expand=True)
 
 
+    # def save_project_folder(self, folder):
+        # Config().set_scan_folder(folder)
+        # self._cache_thumbnails()
 
+    def rotate_image_90(self, row, col):
+        self._rotate_image(row, col, angle=90)
 
+    def rotate_image_minus_90(self, row, col):
+        self._rotate_image(row, col, angle=-90)
 
+    def _rotate_image(self, row, col, angle):
+        key = (row, col)
+        if key not in self.image_cache:
+            return  # No image to rotate
 
+        img = self.image_cache[key]
+        rotated = img.rotate(angle, expand=True)
+        self.image_cache[key] = rotated
 
-    # # def set_scan_folder(self, folder):
-    # #     Config().set_scan_folder(folder)
-    #     # self._cache_thumbnails()
+        # Resize for display if needed
+        display_img = rotated.copy()
+        display_img.thumbnail((100, 100))  # Adjust size as needed
+        tk_image = ImageTk.PhotoImage(display_img)
+
+        self.buttons[key].config(image=tk_image)
+        self.buttons[key].image = tk_image  # Keep reference
