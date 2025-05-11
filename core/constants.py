@@ -4,6 +4,7 @@ APP_TITLE = "AZ-scan - Escáner de Archivos - Fundación Azara"
 POSTCARD_VIEW_TITLE = "Postales"
 MAPS_VIEW_TITLE = "Mapas"
 VIEWER_VIEW_TITLE = "Visor"
+EDITOR_VIEW_TITLE = "Editor"
 
 SCANNER_DRIVER = "wia" if os.getenv('ENVIRONMENT', 'prod') == 'dev' else "twain"
 SCANNER_DEVICE = "lide" if os.getenv('ENVIRONMENT', 'prod') == 'dev' else "twain"

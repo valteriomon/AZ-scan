@@ -1,6 +1,6 @@
 from core.constants import APP_TITLE, POSTCARD_VIEW_TITLE
 from core.app_state import AppState
-from core.image_viewer  import ImageViewer
+from core.image_editor  import ImageEditor
 from core.console import Console
 from core.custom_error import FileAlreadyExistsError
 from core.ui_helpers import Ui
@@ -313,7 +313,7 @@ class PostcardView:
 
                 image_filename = os.path.abspath(next_scan)
                 self.preview_frame.grid(row=4, column=0, sticky="nsew", padx=4, pady=(14,5))
-                viewer = ImageViewer(self.preview_frame, image_filename, status_bar_enabled=False)
+                viewer = ImageEditor(self.preview_frame, image_filename, status_bar_enabled=False)
                 viewer.pack(fill=tk.BOTH, expand=True)
                 self.viewers.append(viewer)
                 self._show_viewer(len(self.viewers) - 1)
