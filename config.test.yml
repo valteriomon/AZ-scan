@@ -1,10 +1,10 @@
 prefixes:
 - code: 00_TBD
-  last_index: 19
+  last_index: 34
 last_scan:
   prefix: 00_TBD
-  folder: null
-  filename: 00_TBD_18_B
+  folder: C:\Users\Wally
+  filename: 00_TBD_33_A
 options:
   scanner:
     naps2_path: C:\Program Files\NAPS2\NAPS2.Console.exe

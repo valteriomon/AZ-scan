@@ -120,109 +120,10 @@ def redo_action():
     else:
         messagebox.showinfo("Redo", "No more actions to redo.")
 
-# Function to rotate the image left by 90 degrees
-def rotate_left():
-    global img
-    if img:
-        save_history()
-        img = img.rotate(90, expand=True)
-        update_display(img)
 
-# Function to flip the image horizontally
-def flip_horizontal():
-    global img
-    if img:
-        save_history()
-        img = img.transpose(Image.FLIP_LEFT_RIGHT)
-        update_display(img)
 
-# Function to apply grayscale to the image
-def apply_grayscale():
-    global img
-    if img:
-        save_history()
-        img = img.convert("L").convert("RGB")
-        update_display(img)
 
-# Function to enhance the image with a sunny effect
-def apply_sunny():
-    global img
-    if img:
-        save_history()
-        enhancer = ImageEnhance.Color(img)
-        img = enhancer.enhance(1.5)
-        update_display(img)
 
-# Function to enhance the image with a natural effect
-def apply_natural():
-    global img
-    if img:
-        save_history()
-        enhancer = ImageEnhance.Contrast(img)
-        img = enhancer.enhance(1.1)
-        update_display(img)
-
-# Crop tool variables
-crop_start = None
-crop_rect = None
-
-# Function to start cropping
-def start_crop(event):
-    global crop_start, crop_rect
-    if img:
-        crop_start = (canvas.canvasx(event.x), canvas.canvasy(event.y))
-        if crop_rect:
-            canvas.delete(crop_rect)
-
-# Function to draw the cropping rectangle
-def draw_crop(event):
-    global crop_rect
-    if img and crop_start:
-        x0, y0 = crop_start
-        x1, y1 = canvas.canvasx(event.x), canvas.canvasy(event.y)
-        if crop_rect:
-            canvas.delete(crop_rect)
-        crop_rect = canvas.create_rectangle(x0, y0, x1, y1, outline="red", width=2)
-
-# Function to end cropping and apply the crop
-def end_crop(event):
-    global img, crop_start, crop_rect
-    if img and crop_start and crop_rect:
-        x0, y0 = map(int, crop_start)
-        x1, y1 = map(int, (canvas.canvasx(event.x), canvas.canvasy(event.y)))
-        x0, x1 = sorted([x0, x1])
-        y0, y1 = sorted([y0, y1])
-
-        canvas_bbox = canvas.bbox(img_container)
-        if not canvas_bbox:  # Ensure the image container exists
-            return
-
-        disp_w = canvas_bbox[2] - canvas_bbox[0]
-        disp_h = canvas_bbox[3] - canvas_bbox[1]
-
-        ratio_x = img.width / disp_w
-        ratio_y = img.height / disp_h
-
-        img_x0, img_y0 = canvas.coords(img_container)
-
-        crop_x0 = int((x0 - img_x0) * ratio_x)
-        crop_y0 = int((y0 - img_y0) * ratio_y)
-        crop_x1 = int((x1 - img_x0) * ratio_x)
-        crop_y1 = int((y1 - img_y0) * ratio_y)
-
-        if crop_x1 - crop_x0 > 0 and crop_y1 - crop_y0 > 0:
-            save_history()
-            img = img.crop((crop_x0, crop_y0, crop_x1, crop_y1))
-            update_display(img)
-
-        canvas.delete(crop_rect)
-        crop_rect = None
-        crop_start = None
-
-# Bind crop tool events to the canvas
-canvas.bind("<Button-1>", start_crop)
-canvas.bind("<B1-Motion>", draw_crop)
-canvas.bind("<ButtonRelease-1>", end_crop)
 
 E1 = '#6579BE'  #DENIM BLUE
 E2 = '#EAB099'
@@ -235,11 +136,6 @@ buttons = [
     ("Save Image", save_img, E2),
     ("Undo", undo_action, F1),
     ("Redo", redo_action, F2),
-    ("Rotate Left", rotate_left, E1),
-    ("Flip Horizontal", flip_horizontal,G2 ),
-    ("Grayscale", apply_grayscale, G2),
-    ("Natural", apply_natural, G2),
-    ("Sunny", apply_sunny, G2),
     ("Remove Image", remove_img, "#EF9A9A"),
 ]
 

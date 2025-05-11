@@ -305,6 +305,8 @@ class PostcardView:
                 self.scan_button.config(state="normal")
                 self.status_label.config(text="Listo para escanear.")
                 if self.save_state.get():
+                    self.folder.set(self.state.folder)
+                    self.prefix.set(self.state.prefix)
                     self.state.save_config()
 
                 self.last_scan.set(self.state.next_scan)

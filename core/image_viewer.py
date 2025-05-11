@@ -25,6 +25,7 @@ class ImageViewer(tk.Frame):
                 pass
 
         self.pil_image = None
+        self.image_container = None
         self.hq_render_after_id = None
 
         self.layout_frame = tk.Frame(self)
@@ -243,7 +244,7 @@ class ImageViewer(tk.Frame):
 
         im = ImageTk.PhotoImage(image=dst)
         self.canvas.delete("all")  # Clear previous image
-        self.canvas.create_image(0, 0, anchor='nw', image=im)
+        self.image_container = self.canvas.create_image(0, 0, anchor='nw', image=im)
         self.image = im
 
     def _redraw_image(self):

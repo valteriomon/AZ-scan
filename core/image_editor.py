@@ -1,14 +1,17 @@
 """
 TODO
     - Set in all editors same config.
+    - Crosshair mode.
 """
-import os
+import os, shutil, threading
+from datetime import datetime
 import tkinter as tk
 from tkinter import ttk
 from core.image_viewer import ImageViewer
 import math
 import numpy as np
 from PIL import Image
+from core.auto_crop import AutoCrop
 from core.constants import APP_TITLE, EDITOR_VIEW_TITLE
 
 class ImageEditor(ImageViewer):
@@ -16,10 +19,13 @@ class ImageEditor(ImageViewer):
         super().__init__(master, filepath, status_bar_enabled)
         self.title = f"{APP_TITLE} - {EDITOR_VIEW_TITLE}"
         self.original_image = None
+        # Rotations are applied on cropped image
+        self.cropped_image = None
 
     def set_image(self, filepath=None):
         super().set_image(filepath)
         self.original_image = self.pil_image.copy()
+        self.cropped_image = self.pil_image.copy()
         self._set_initial_state()
 
     def _create_canvas(self):
@@ -48,12 +54,13 @@ class ImageEditor(ImageViewer):
             self.rotation_label.pack(side="right")
 
         def _create_editor_bottom_toolbar():
-            self.editor_bottom_tool_frame = tk.Frame(self.layout_frame, padx=5, pady=5)
+            self.editor_bottom_tool_frame = tk.Frame(self.layout_frame, padx=0, pady=5)
             self.editor_bottom_tool_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
-            ttk.Button(self.editor_bottom_tool_frame, text="Deshacer (ctrl + z)", command=self._undo).pack(side="left")
-            ttk.Button(self.editor_bottom_tool_frame, text="Resetear (q)", command=self._reset_original).pack(side="left")
-            ttk.Button(self.editor_bottom_tool_frame, text="Guardar (ctrl + s)", command=self._save).pack(side="right")
+            ttk.Button(self.editor_bottom_tool_frame, text="Deshacer (ctrl + z)", command=self._undo, width=18).pack(side="left", padx=(0,8))
+            ttk.Button(self.editor_bottom_tool_frame, text="Resetear", command=self._reset_original, width=18).pack(side="left")
+            ttk.Button(self.editor_bottom_tool_frame, text="Guardar (ctrl + s)", command=self._save, width=18).pack(side="right", padx=(8,0))
+            ttk.Button(self.editor_bottom_tool_frame, text="Abrir carpeta", command=self._open_folder, width=18).pack(side="right")
 
         def _create_editor_advanced_toolbar():
             self.editor_advanced_tool_frame = tk.Frame(self.editor_top_tool_frame, padx=5, pady=5)
@@ -84,11 +91,17 @@ class ImageEditor(ImageViewer):
         else:
             self.image_stack.clear()
 
-        # self.editing = False
-        # self.level_line = None
+        self.level_line = None
+        self.ctrl_held = False
+        self.rect = None
+        # Crop tool variables
+        self.crop_start = None
+        self.crop_rect = None
         # self.advanced_editor = False
-        # self.rect = None
+        # self.editing = False
         # self.start_x = self.start_y = None
+        # self.temp_guides = []  # Two guide line IDs during Alt-drag
+        # self.guide_stack = []  # Stores both lines per guide crosshair
 
     def _update_rotation_label(self, *args):
         display_angle = round(self.rotation_angle_var.get(), 1)
@@ -96,7 +109,7 @@ class ImageEditor(ImageViewer):
         if isinstance(display_angle, float) and display_angle.is_integer():
             display_angle = int(display_angle)
 
-        self.rotation_label.config(text=f"Rotation: {display_angle}°")
+        self.rotation_label.config(text=f"Rotación: {display_angle}°")
 
     def _toggle_advanced_mode(self, *args):
         advanced_mode = self.advanced_mode_var.get()
@@ -109,73 +122,38 @@ class ImageEditor(ImageViewer):
     #     self.rotation_horizon = self.advanced_mode_var.get()
 
     def _save(self, event=None):
-        pass
+        image_path = self.filepath.get()
+        if self.pil_image and image_path:
+            # Backup first
+            base, ext = os.path.splitext(image_path)
+            human_timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+            backup_path = f"{base}.{human_timestamp}.bak.{ext}"
+            if not os.path.exists(backup_path):
+                shutil.copy2(image_path, backup_path)
+            else:
+                print(f"Backup already exists at: {backup_path}")
+            # Save (overwrite)
+            self.pil_image.save(image_path)
+            print(f"Image saved and original backed up at: {backup_path}")
+        else:
+            print("No image loaded or original path unknown.")
 
     def _undo(self, event=None):
         if self.image_stack:
             self.previous_image = self.image_stack.pop()
             self.pil_image = self.previous_image.get("image", self.original_image)
+            self.cropped_image = self.pil_image.copy()
             self.rotation_angle = self.previous_image.get("rotation_angle", 0)
             self.rotation_angle_var.set(self.rotation_angle)
-            # self.rotation_angle_var.set(360 - int(self.rotation_angle))
             if not self.image_stack:
                 self._set_initial_state()
         self._zoom_fit()
 
     def _reset_original(self, event=None):
         self.pil_image = self.original_image.copy()
+        self.cropped_image = self.original_image.copy()
         self._set_initial_state()
         self._zoom_fit()
-
-    def _rotate_left(self, event=None):
-        self._rotate_image(90)
-        self._zoom_fit()
-
-    def _rotate_right(self, event=None):
-        self._rotate_image(-90)
-        self._zoom_fit()
-
-    def _fine_rotate(self, angle):
-        self._rotate_image(angle)
-        self._zoom_fit()
-
-    def _rotate_image(self, angle):
-        if self.pil_image:
-            self.total_rotation = (self.rotation_angle - angle) % 360
-            self.rotation_angle = self.total_rotation
-
-            # if angle == 90 or angle == -90:
-            #     self.rotation_angle = (self.rotation_angle + angle) % 360  # Reset to 90-degree increments
-            # else:
-            #     self.rotation_angle += angle
-            # self.rotation_angle %= 360  # Ensure rotation stays within 0-360 degrees
-            # current_rotation_angle = self.rotation_angle_var.get()
-
-            self.image_stack.append({
-                "image": self.pil_image.copy(),
-                "rotation_angle": self.total_rotation
-            })
-            print(angle, self.total_rotation)
-            # self.pil_image = self.pil_image.rotate(angle, expand=True)
-            self.pil_image = self.original_image.rotate(-self.total_rotation, expand=True, resample=Image.BICUBIC)
-            self.rotation_angle_var.set(self.total_rotation)
-            # self.rotation_angle_var.set(new_rotation_angle)
-
-    def _mouse_wheel(self, event):
-        if event.state & 0x0004:  # Control key
-            if (event.delta < 0):
-                self._rotate_right()
-            else:
-                self._rotate_left()
-        elif event.state & 0x0001:  # Shift key
-            step = float(self.fine_rotation_var.get())
-            print(step)
-            if event.delta < 0:
-                self._fine_rotate(-step)
-            else:
-                self._fine_rotate(step)
-        else:
-            return super()._mouse_wheel(event)
 
     def _cycle_fine_rotation(self, event=None):
         options = ["0.1", "0.5", "1", "5"]
@@ -187,64 +165,69 @@ class ImageEditor(ImageViewer):
         next_index = (index + 1) % len(options)
         self.fine_rotation_var.set(options[next_index])
 
-    def _add_bindings(self):
-        self.master.bind_all("<Control-z>", self._undo)
-        self.master.bind_all("<q>", self._reset_original)
-        self.master.bind_all("<Q>", self._reset_original)
-        self.master.bind_all("<e>", lambda e: self.advanced_mode_var.set(not self.advanced_mode_var.get()))
-        self.master.bind_all("<E>", lambda e: self.advanced_mode_var.set(not self.advanced_mode_var.get()))
-        self.master.bind_all("<f>", self._rotate_right)
-        self.master.bind_all("<F>", self._rotate_right)
-        self.master.bind_all("<d>", self._rotate_left)
-        self.master.bind_all("<D>", self._rotate_left)
-        self.master.bind_all("<r>", self._cycle_fine_rotation)
-        self.master.bind_all("<R>", self._cycle_fine_rotation)
-        self.master.bind_all("<t>", lambda e: self.rotation_horizon_var.set(not self.rotation_horizon_var.get()))
-        self.master.bind_all("<T>", lambda e: self.rotation_horizon_var.set(not self.rotation_horizon_var.get()))
-
-        self.master.bind_all("<ButtonRelease-1>", self._mouse_release_left)
-
-
-
+    """
+    Events
+    """
+    def _mouse_wheel(self, event):
+        if event.state & 0x0004:  # Control key
+            if (event.delta < 0):
+                self._rotate_right()
+            else:
+                self._rotate_left()
+        elif event.state & 0x0001:  # Shift key
+            step = float(self.fine_rotation_var.get())
+            if event.delta < 0:
+                self._fine_rotate(-step)
+            else:
+                self._fine_rotate(step)
+        else:
+            return super()._mouse_wheel(event)
 
     def _mouse_press_left(self, event):
         if event.state & 0x0001:  # Shift key
             self._level_line_press(event)
-            print("_mouse_press_left")
-            pass
+    #         self._ImageViewer__old_event = event
         elif event.state & 0x0004:  # Control key
-            pass
+
+            self._crop_press(event)
+            # pass
         else:
             super()._mouse_press_left(event)
-
 
     def _mouse_release_left(self, event):
         if event.state & 0x0001:  # Shift key
             self._level_line_release(event)
             print("_mouse_release_left")
-            self._zoom_fit()
-            pass
         elif event.state & 0x0004:  # Control key
-            pass
 
+            self._crop_release(event)
+            # pass
 
     def _mouse_move_left(self, event):
-        # self.__old_event = event
+
         if event.state & 0x0001:  # Shift key
             self._level_line_drag(event)
             print("_mouse_move_left")
-            pass
         elif event.state & 0x0004:  # Control key
-            pass
+            self._crop_drag(event)
         else:
             super()._mouse_move_left(event)
 
+    #         self.editing = False
+
+    def _on_ctrl_press(self, event):
+        if not self.ctrl_held:
+            self.ctrl_held = True
+            self._zoom_fit()
 
 
+    def _on_ctrl_release(self, event):
+        self.ctrl_held = False
 
-
+    """
+    Rotating using line as reference.
+    """
     def _level_line_press(self, event):
-        print("level_line_press", event.x, event.y)
         self.start_x, self.start_y = event.x, event.y
         self.level_line = self.canvas.create_line(event.x, event.y, event.x, event.y, fill="red", width=2)
 
@@ -281,223 +264,241 @@ class ImageEditor(ImageViewer):
         angle_deg = math.degrees(angle_rad)
 
         # Rotate image so that the line becomes horizontal
-        # self.pil_image = self.pil_image.rotate(angle_deg, expand=True, resample=Image.BICUBIC)
         self._rotate_image(angle_deg)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        # bind_target.bind("<ButtonPress-3>", self._level_line_press)
-        # bind_target.bind("<B3-Motion>", self._level_line_drag)
-
-
-        # bind_target.bind("<x>", self._crop_using_crosshairs)
-        # bind_target.bind_all("<KeyPress-Control_L>", self._on_key_press)
-        # bind_target.bind_all("<KeyRelease-Control_L>", self._on_key_release)
-        # bind_target.bind_all("<KeyPress-Control_R>", self._on_key_press)
-        # bind_target.bind_all("<KeyRelease-Control_R>", self._on_key_release)
-        # bind_target.bind_all("<KeyPress-Shift_L>", self._on_key_press)
-        # bind_target.bind_all("<KeyRelease-Shift_L>", self._on_key_release)
-        # bind_target.bind_all("<KeyPress-Shift_R>", self._on_key_press)
-        # bind_target.bind_all("<KeyRelease-Shift_R>", self._on_key_release)
-
-        # bind_target.focus_set()  # Make surfe the canvas has keyboard focus
-
-        # Advanced editor
-        # Right click
-        # Left click
-        # Middle click
-        # Double click
-        # Scroll wheel
-        # Modifiers ctrl, alt, shift
-
-
-
-
-
-
-
-
-
-
-
-
-
-        # if self.original_image:
-        #     self.image = self.original_image.copy()  # Restore the original image
-        #     self.rotation_angle = 0  # Reset the rotation angle
-        #     self.scale.set(1) # Reset the scale
-        #     self.image_stack.clear()
-        #     self.update_display_image()
-        #     self.update_rotation_label()
-    # def _clear_editing_state(self):
-    #     self.editing = False
-    #     self._ImageViewer__old_event = None
-    #     self.start_x = None
-    #     self.start_y = None
-    #     if hasattr(self, "level_line") and self.level_line:
-    #         self.canvas.delete(self.level_line)
-    #         self.level_line = None
-    #     if hasattr(self, "rect") and self.rect:
-    #         self.canvas.delete(self.rect)
-    #         self.rect = None
-
-
-
-    # def _save(self, event=None):
-    #     return
-    #     self.pil_image.save(self.filepath.get())
-
-    #     print("image_path")
-    #     image_path = self.filepath.get()
-
-    #     if self.pil_image and image_path:
-    #         # Backup first
-    #         base, ext = os.path.splitext(image_path)
-    #         timestamp = int(time.time())
-    #         backup_path = f"{base}.{timestamp}.bak{ext}"
-    #         if not os.path.exists(backup_path):
-    #             shutil.copy2(image_path, backup_path)
-    #         else:
-    #             print(f"Backup already exists at: {backup_path}")
-
-    #         # Save (overwrite)
-    #         self.pil_image.save(image_path)
-    #         print(f"Image saved and original backed up at: {backup_path}")
-
-    #     else:
-    #         print("No image loaded or original path unknown.")
-
-
-
-
-
-
-    # def _mouse_press_left(self, event):
-    #     if event.state & 0x0001:  # Shift key
-    #         self._ImageViewer__old_event = event
-    #         self.editing = True
-    #         self._level_line_press(event)
-    #     elif event.state & 0x0004:  # Control key
-    #         self._ImageViewer__old_event = event
-    #         self.editing = True
-    #         self._crop_press(event)
-    #     else:
-    #         super()._mouse_press_left(event)
-
-
-    # def _mouse_release_left(self, event):
-
-    #     if event.state & 0x0001:  # Shift key
-    #         self._level_line_release(event)
-    #     elif event.state & 0x0004:  # Control key
-    #         self._crop_release(event)
-    #     elif self.editing:
-    #         self.editing = False
-    #         # self._zoom_fit()
-
-    # def _mouse_move_left(self, event):
-    #     # self.__old_event = event
-    #     if event.state & 0x0001:  # Shift key
-    #         self._level_line_drag(event)
-    #     elif event.state & 0x0004:  # Control key
-    #         self._crop_drag(event)
-
-    #     else:
-    #         super()._mouse_move_left(event)
-
-
-
-
-
-
-
-
-
-
-
-
-
-    # def _crop_press(self, event):
-    #     # if self.display_image:
+    """
+    Rotation
+    """
+    def _rotate_left(self, event=None):
+        self._rotate_image(90)
+
+    def _rotate_right(self, event=None):
+        self._rotate_image(-90)
+
+    def _fine_rotate(self, angle):
+        self._rotate_image(angle)
+
+    def _rotate_image(self, angle):
+        def worker():
+            if self.pil_image:
+                self.total_rotation = (self.rotation_angle - angle) % 360
+                self.rotation_angle = self.total_rotation
+
+                # rotated = self.original_image.rotate(-self.total_rotation, expand=True, resample=Image.BICUBIC)
+                rotated = self.cropped_image.rotate(-self.total_rotation, expand=True, resample=Image.BICUBIC)
+                self.image_stack.append({
+                    "image": self.pil_image.copy(),
+                    "rotation_angle": self.total_rotation
+                })
+                # self.rotation_angle_var.set(self.total_rotation)
+                self.after(0, lambda: self._apply_rotation_result(rotated))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _apply_rotation_result(self, rotated_image):
+        self.pil_image = rotated_image
+        self.rotation_angle_var.set(self.total_rotation)
+        self._zoom_fit()
+
+    """
+    Cropping
+    """
+    def _crop_press(self, event):
+    #     if self.pil_image:
     #         self.start_x = event.x
     #         self.start_y = event.y
-    #         self.rect = self.canvas.create_rectangle(self.start_x, self.start_y, self.start_x, self.start_y, outline="red")
+    #         self.rect = self.canvas.create_rectangle(self.start_x, self.start_y, self.start_x, self.start_y, outline="red", width=2)
+    #     else:
+    #         self.rect = None
 
-    # def _crop_drag(self, event):
+    # def start_crop(self, event):
+        if self.pil_image:
+            self.crop_start = (self.canvas.canvasx(event.x), self.canvas.canvasy(event.y))
+            if self.crop_rect:
+                self.canvas.delete(self.crop_rect)
+
+    def _crop_drag(self, event):
     #     if self.rect:
     #         self.canvas.coords(self.rect, self.start_x, self.start_y, event.x, event.y)
 
-    # def _crop_release(self, event):
-    #     if self.pil_image and self.rect:
-    #         x0, y0, x1, y1 = map(int, self.canvas.coords(self.rect))
-    #         x0, x1 = sorted((x0, x1))
-    #         y0, y1 = sorted((y0, y1))
+    # def draw_crop(self, event):
+        img = self.pil_image
+        if img and self.crop_start:
+            x0, y0 = self.crop_start
+            x1, y1 = self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)
+            if self.crop_rect:
+                self.canvas.delete(self.crop_rect)
+            self.crop_rect = self.canvas.create_rectangle(x0, y0, x1, y1, outline="red", width=2)
 
-    #         (scale, offsetx, offsety) = self._compute_scale_and_offset()
+    def _crop_release(self, event):
+        if self.pil_image and self.crop_rect:
+            coords = self.canvas.coords(self.crop_rect)
+            if len(coords) != 4:
+                # Invalid or zero-size rectangle, clean up and abort
+                self.canvas.delete(self.crop_rect)
+                self.crop_rect = None
+                return
 
-    #         # Adjust for image position and scale
-    #         # x0_adj = int((x0 - self.img_offset_x) * self.img_scale_x)
-    #         # y0_adj = int((y0 - self.img_offset_y) * self.img_scale_y)
-    #         # x1_adj = int((x1 - self.img_offset_x) * self.img_scale_x)
-    #         # y1_adj = int((y1 - self.img_offset_y) * self.img_scale_y)
+            x0, y0, x1, y1 = map(int, coords)
+            x0, x1 = sorted((x0, x1))
+            y0, y1 = sorted((y0, y1))
 
-    #         x0_adj = int((x0 - offsetx) / scale)
-    #         y0_adj = int((y0 - offsety) / scale)
-    #         x1_adj = int((x1 - offsetx) / scale)
-    #         y1_adj = int((y1 - offsety) / scale)
+            (scale, offsetx, offsety) = self._compute_scale_and_offset()
+
+            x0_adj = int((x0 - offsetx) / scale)
+            y0_adj = int((y0 - offsety) / scale)
+            x1_adj = int((x1 - offsetx) / scale)
+            y1_adj = int((y1 - offsety) / scale)
+
+            if (x1_adj > x0_adj and y1_adj > y0_adj and
+                0 <= x0_adj < self.pil_image.width and
+                0 <= y0_adj < self.pil_image.height and
+                x1_adj <= self.pil_image.width and
+                y1_adj <= self.pil_image.height):
+
+                self.image_stack.append({"image": self.pil_image.copy(), "rotation_angle": self.rotation_angle})  # Save for undo
+                self.cropped_image = self.pil_image.crop((x0_adj, y0_adj, x1_adj, y1_adj))
+                self.pil_image = self.cropped_image.copy()
+                self._zoom_fit()
+
+        if self.crop_rect:
+            self.canvas.delete(self.crop_rect)
+            self.crop_rect = None
+
+    # def end_crop(self, event):
+        # img = self.pil_image
+        # if img and self.crop_start and self.crop_rect:
+        #     x0, y0 = map(int, self.crop_start)
+        #     x1, y1 = map(int, (self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)))
+        #     x0, x1 = sorted([x0, x1])
+        #     y0, y1 = sorted([y0, y1])
+
+        #     canvas_bbox = self.canvas.bbox(self.image_container)
+        #     if not canvas_bbox:  # Ensure the image container exists
+        #         return
+
+        #     disp_w = canvas_bbox[2] - canvas_bbox[0]
+        #     disp_h = canvas_bbox[3] - canvas_bbox[1]
+
+        #     ratio_x = img.width / disp_w
+        #     ratio_y = img.height / disp_h
+
+        #     img_x0, img_y0 = self.canvas.coords(self.image_container)
+
+        #     crop_x0 = int((x0 - img_x0) * ratio_x)
+        #     crop_y0 = int((y0 - img_y0) * ratio_y)
+        #     crop_x1 = int((x1 - img_x0) * ratio_x)
+        #     crop_y1 = int((y1 - img_y0) * ratio_y)
+
+        #     if crop_x1 - crop_x0 > 0 and crop_y1 - crop_y0 > 0:
+        #         # save_history()
+        #         img = img.crop((crop_x0, crop_y0, crop_x1, crop_y1))
+        #         self.pil_image = img
+        #         self._zoom_fit()
+        #         # update_display(img)
+
+        #     self.canvas.delete(self.crop_rect)
+        #     self.crop_rect = None
+        #     self.crop_start = None
 
 
-    #         print(x0_adj, y0_adj, x1_adj, y1_adj)
-
-    #         if (x1_adj > x0_adj and y1_adj > y0_adj and
-    #             0 <= x0_adj < self.pil_image.width and
-    #             0 <= y0_adj < self.pil_image.height and
-    #             x1_adj <= self.pil_image.width and
-    #             y1_adj <= self.pil_image.height):
-
-    #             self.image_stack.append({"img": self.pil_image.copy()})  # Save for undo
-
-    #             self.pil_image = self.pil_image.crop((x0_adj, y0_adj, x1_adj, y1_adj))
-    #             self._zoom_fit()
-
-    #         self.canvas.delete(self.rect)
-    #         self.rect = None
 
 
 
 
 
+    # def _crosshair_remove(self, event):
+    #     if self.guide_stack:
+    #         last = self.guide_stack.pop()
+    #         if "ids" in last:
+    #             for gid in last["ids"]:
+    #                 self.canvas.delete(gid)
 
+    # def _redraw_crosshairs(self):
+    #     # First, delete any existing crosshair lines
+    #     for guide in self.guide_stack:
+    #         if "ids" in guide:
+    #             for gid in guide["ids"]:
+    #                 self.canvas.delete(gid)
+    #         guide["ids"] = []  # Clear old ids
 
+    #     # Then, re-create them and store new ids
+    #     for guide in self.guide_stack:
+    #         scale, offsetx, offsety = self._compute_scale_and_offset(
+    #             self.canvas.winfo_width(), self.canvas.winfo_height(),
+    #             self.pil_image.width, self.pil_image.height
+    #         )
 
+    #         rel_x, rel_y = guide["rel_coords"]
+    #         canvas_x = rel_x * scale + offsetx
+    #         canvas_y = rel_y * scale + offsety
 
+    #         vline = self.canvas.create_line(canvas_x, 0, canvas_x, self.canvas.winfo_height(), fill="red")
+    #         hline = self.canvas.create_line(0, canvas_y, self.canvas.winfo_width(), canvas_y, fill="red")
+    #         guide["ids"] = [vline, hline]
 
+    # def _crop_using_crosshairs(self, event):
+    #     if len(self.guide_stack) != 2:
+    #         print("Need exactly 2 crosshairs to crop.")
+    #         return
 
+    #     # Get relative coordinates from guide stack
+    #     rel_coords_1 = self.guide_stack[0]["rel_coords"]
+    #     rel_coords_2 = self.guide_stack[1]["rel_coords"]
 
+    #     # Convert to image coordinates
+    #     x0 = int(min(rel_coords_1[0], rel_coords_2[0]))
+    #     y0 = int(min(rel_coords_1[1], rel_coords_2[1]))
+    #     x1 = int(max(rel_coords_1[0], rel_coords_2[0]))
+    #     y1 = int(max(rel_coords_1[1], rel_coords_2[1]))
+
+    #     # Ensure bounds are valid
+    #     if (x1 > x0 and y1 > y0 and
+    #         0 <= x0 < self.pil_image.width and
+    #         0 <= y0 < self.pil_image.height and
+    #         x1 <= self.pil_image.width and
+    #         y1 <= self.pil_image.height):
+
+    #         self.image_stack.append(self.pil_image.copy())  # Save for undo
+
+    #         self.pil_image = self.pil_image.crop((x0, y0, x1, y1))
+    #         self.guide_stack = []  # Clear guides
+    #         self._zoom_fit()
+    #         # self._redraw_image()
+    #         # self._redraw_crosshairs()
+    #     else:
+    #         print("Invalid crop bounds.")
+
+    """
+    Bindings
+    """
+    def _add_bindings(self):
+        self.master.bind_all("<Control-z>", self._undo)
+        self.master.bind_all("<Control-s>", self._save)
+        self.master.bind_all("<e>", lambda e: self.advanced_mode_var.set(not self.advanced_mode_var.get()))
+        self.master.bind_all("<E>", lambda e: self.advanced_mode_var.set(not self.advanced_mode_var.get()))
+        self.master.bind_all("<f>", self._rotate_right)
+        self.master.bind_all("<F>", self._rotate_right)
+        self.master.bind_all("<d>", self._rotate_left)
+        self.master.bind_all("<D>", self._rotate_left)
+        self.master.bind_all("<r>", self._cycle_fine_rotation)
+        self.master.bind_all("<R>", self._cycle_fine_rotation)
+        self.master.bind_all("<t>", lambda e: self.rotation_horizon_var.set(not self.rotation_horizon_var.get()))
+        self.master.bind_all("<T>", lambda e: self.rotation_horizon_var.set(not self.rotation_horizon_var.get()))
+        self.master.bind_all("<ButtonRelease-1>", self._mouse_release_left)
+        self.master.bind_all("<Control_L>", self._on_ctrl_press)
+        self.master.bind_all("<KeyRelease-Control_L>", self._on_ctrl_release)
+        self.master.bind_all("<h>", self._autocrop)
+        # self.master.bind_all("<Control-Button-1>", self._crop_press)
+        # Bind crop tool events to the canvas
+        # self.master.bind_all("<Control-Button-1>", self.start_crop)
+        # self.master.bind_all("<Control-B1-Motion>", self.draw_crop)
+        # self.master.bind_all("<Control-ButtonRelease-1>", self.end_crop)
+
+    def _autocrop(self, event):
+        np_array = AutoCrop(self.pil_image).method()
+        self.pil_image = Image.fromarray(np_array)
+        self._zoom_fit()
 
 if __name__ == "__main__":
     import argparse
