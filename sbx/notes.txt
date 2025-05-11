@@ -1,3 +1,32 @@
+
+        # if canvas_width <= 1 or canvas_height <= 1:
+        #     self.root.after(100, self.update_display_image)
+        #     return
+
+        # img_width, img_height = self.pil_image.size
+        # ratio = min(canvas_width / img_width, canvas_height / img_height)
+        # new_width, new_height = int(img_width * ratio), int(img_height * ratio)
+
+        # self.tk_image = ImageTk.PhotoImage(resized_img)
+
+        # # self.canvas.create_image(w // 2, h // 2, image=self.tk_image, anchor="center")
+        # self.canvas.create_image((canvas_width - new_width) // 2, (canvas_height - new_height) // 2,
+        #                          image=self.tk_image, anchor="nw")
+
+        # self.img_offset_x = (canvas_width - new_width) // 2
+        # self.img_offset_y = (canvas_height - new_height) // 2
+        # self.img_scale_x = self.image.width / new_width
+        # self.img_scale_y = self.image.height / new_height
+
+
+
+
+
+
+
+
+
+
 for file in sorted(os.listdir(args.input_dir)):
     full_path = os.path.join(args.input_dir, file)
     if os.path.isfile(full_path) and file.lower().endswith(('.jpg', '.jpeg', '.png', '.tif', '.tiff')):

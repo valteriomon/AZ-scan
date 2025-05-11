@@ -1,10 +1,18 @@
-import os, threading, re
+"""
+TODO:
+    - Missing images in grid on project load.
+    - Pre-set map grid.
+    - Join with drag and drop (web app).
+    - Log errors.
+"""
+
+import os, threading, re, time
 from pathlib import Path
 from core.constants import APP_TITLE, MAPS_VIEW_TITLE
 from core.config import Config
 from core.image_viewer  import ImageViewer
 from core.console import Console
-from core.ui_modules import Ui
+from core.ui_helpers import Ui
 import core.ui_styles as styles
 import core.utils as utils
 from core.custom_error import FileAlreadyExistsError
@@ -87,20 +95,20 @@ class MapView:
         for widget in root.winfo_children():
             widget.destroy()
 
-        Ui.menu(self.root, [
-            {
-                "label": "Nuevo",
-                "command": self._reset
-            },
-            {
-                "label": "Cargar proyecto",
-                "command": self._load_project
-            },
-            {
+        menu_options = [{
+            "label": "Nuevo",
+            "command": self._reset
+        },
+        {
+            "label": "Cargar proyecto",
+            "command": self._load_project
+        }]
+        if self.go_back_callback:
+            menu_options.append({
                 "label": "Menú principal",
                 "command": self.go_back_callback
-            }
-        ])
+            })
+        Ui.menu(self.root, menu_options)
 
         self.wrapper = ttk.Frame(root)
         self.wrapper.pack(fill="both", expand=True)
@@ -415,7 +423,7 @@ class MapView:
         self._bind_resize_events()
         self._bind_mouse_scroll_events()
 
-    def _add_cell(self, row=False):
+    def _compute_grid_buttons(self, row=False):
         button = self._make_grid_button("", None)
         if not self.grid:  # Empty grid. Create first cell: Create first row and add first col -> Next only "Add col" available
             self.buttons[ButtonType.START]["display"] = False
@@ -454,6 +462,8 @@ class MapView:
                     self.buttons[ButtonType.COL]["display"] = False
                 self.grid[-1].append(button)
 
+    def _add_cell(self, row=False):
+        self._compute_grid_buttons(row)
         for r, row_items in enumerate(self.grid):
             for c, btn in enumerate(row_items):
                 if isinstance(btn, tk.Button):
@@ -529,24 +539,6 @@ class MapView:
                 if not self.grid:
                     self._create_grid()
                     self._new_grid_ui()
-                    # self.label_warning.config(text="Atajos de teclado: (c) para escanear columnas, (f) para escanear filas.")
-                    # self._bind_keys()
-                    # self._set_project_folder()
-
-                    # rotate_right_btn = tk.Button(self.bottom_frame, text="⟳ Rotar todo", command=self._rotate_all_images_clockwise, bg="#cccccc", activebackground="#bbbbbb", relief="flat")
-                    # rotate_right_btn.pack(side="right", padx=(5, 0))
-                    # rotate_left_btn = tk.Button(self.bottom_frame, text="⟲ Rotar todo", command=self._rotate_all_images_counterclockwise, bg="#cccccc", activebackground="#bbbbbb", relief="flat")
-                    # rotate_left_btn.pack(side="right", padx=(5, 0))
-                    # self.rotation_label_var = tk.StringVar(value=f"Rotación actual: {self.rotation_angle}°")
-                    # self.rotation_label = tk.Label(
-                    #     self.bottom_frame,
-                    #     textvariable=self.rotation_label_var,
-                    #     bg="#cccccc",
-                    #     fg="#171717",
-                    #     padx=5,
-                    #     pady=4
-                    # )
-                    # self.rotation_label.pack(side="right")
 
                 self.root.after(0, lambda: (
                     self._cache_thumbnails(filepath, filename, row, col),
@@ -645,33 +637,61 @@ class MapView:
         self._rotate_all_images(angle=90)
 
     def _rotate_all_images(self, angle):
+        self.status_bar.config(text="Rotando imágenes...")
+        thread = threading.Thread(target=self._rotate_all_images_threaded, args=(angle,))
+        thread.start()
+
+    def _rotate_all_images_threaded(self, angle):
         for row in range(1, self.rows + 1):
             for col in range(1, self.cols + 1):
-                self._rotate_image(row, col, angle)
+                key = f"{row}-{col}"
+                filepath = self.image_paths.get(key)
+                if not filepath or not os.path.exists(filepath):
+                    continue
+
+                try:
+                    img = Image.open(filepath)
+                    rotated = img.rotate(angle, expand=True)
+                    rotated.save(filepath)
+                    self._cache_thumbnails(filepath, None, row, col)
+
+                    def update_ui(r=row, c=col):
+                        btn = self.grid[r-1][c-1]
+                        if btn:
+                            btn.configure(image=self.image_cache.get(f"{r}-{c}"))
+
+                    self.root.after(0, update_ui)
+
+                except Exception as e:
+                    print(f"Error rotating {filepath}: {e}")
+
+        self.root.after(0, lambda: self.status_bar.config(text="Todas las imágenes han sido rotadas. Listo para escanear."))
 
     def _load_project(self):
         folder = filedialog.askdirectory()
+        if not folder:
+            return
         self._reset()
+        code = os.path.basename(folder)
+        self.project_code.set(code)
+        self.project_folder.set(folder)
+        self.buttons[ButtonType.START]["button"].config(state="disabled")
+        self.entry_project_code.config(state="disabled")
+        self.button_project_folder.config(text="Abrir carpeta", command=self._open_project_folder)
+        self.status_bar.config(text="Cargando proyecto...")
+        threading.Thread(target=self._load_project_threaded, args=(folder,), daemon=True).start()
 
-        # Try to detect the project code from files
+    def _load_project_threaded(self, folder):
         all_files = os.listdir(folder)
         filetype = self._filetype
         file_pattern = re.compile(rf"^(.+)_([A-Z]+)(\d+)\.{filetype}$")
-
         matched_files = [f for f in all_files if file_pattern.match(f)]
         if not matched_files:
-            messagebox.showwarning("Advertencia", "No se encontraron archivos válidos en la carpeta.")
+            self.after(0, lambda: messagebox.showwarning("Advertencia", "No se encontraron archivos válidos en la carpeta."))
             return
 
-        # Extract code from the first matching filename
-        first_match = file_pattern.match(matched_files[0])
-        if not first_match:
-            return
-        code = first_match.group(1)
-        self.project_code.set(code)
-
-        # Prepare the grid dictionary: {(row, col): filename}
         grid_data = {}
+        row_max_col = {}
         max_row = 0
         max_col = 0
         for filename in matched_files:
@@ -679,39 +699,73 @@ class MapView:
             if not match:
                 continue
             alpha_row, col = match.group(2), int(match.group(3))
-            row = utils.alpha_converter(alpha_row, zero_based=False)  # Needs to be implemented if not already
+            row = utils.alpha_converter(alpha_row, zero_based=False)
             grid_data[(row, col)] = filename
             max_row = max(max_row, row)
             max_col = max(max_col, col)
+            row_max_col[row] = max(row_max_col.get(row, 0), col)
 
-        self._create_grid()
-        self._new_grid_ui()
-        self.grid = [[None for _ in range(max_col)] for _ in range(max_row)]
+        grid = []
+        for row in range(1, max_row + 1):
+            max_col = row_max_col.get(row, 0)
+            row_buttons = [None for _ in range(max_col)]
+            grid.append(row_buttons)
 
-        # self.root.after(0, lambda: (
-        #     self._cache_thumbnails(filepath, filename, row, col),
-        #     self._add_cell(False)
-        # ))
-        # return
+        image_cache = {}
+        image_paths = {}
+        button_info = []
 
         for (row, col), filename in grid_data.items():
             filepath = os.path.join(folder, filename)
             self._cache_thumbnails(filepath, filename, row, col)
-            button = self._make_grid_button("", None)
-            button.configure(image=self.image_cache.get(f"{row}-{col}"))
-            button.configure(text=f"{utils.alpha_converter(row-1)}, {col-1}")
-            button.bind("<Double-Button-1>", self._make_double_click_callback(row-1, col-1))
-            right_click_menu = self._make_right_click_menu(row-1, col-1)
-            button.bind("<Button-3>", lambda e, menu=right_click_menu: menu.tk_popup(e.x_root, e.y_root))
-            button.grid(row=row-1, column=col-1, padx=2, pady=2)
-            self.grid[row-1][col-1] = button
-            self.image_paths[f"{row}-{col}"] = filepath
+            image_cache[f"{row}-{col}"] = self.image_cache[f"{row}-{col}"]
+            image_paths[f"{row}-{col}"] = filepath
+            button_info.append((row, col))
 
-        self.rows = max_row
-        self.cols = max_col
-        self._render_buttons()
-        self._update_column_headers()
-        self._update_row_headers()
+        # Now apply UI changes in the main thread
+        def update_ui():
+
+            self._create_grid()
+            self._new_grid_ui()
+            self.grid = grid
+            self.image_paths.update(image_paths)
+
+            for (row, col) in button_info:
+                button = self._make_grid_button("", None)
+                button.configure(image=image_cache[f"{row}-{col}"])
+                button.configure(text=f"{utils.alpha_converter(row-1)}, {col-1}")
+                button.bind("<Double-Button-1>", self._make_double_click_callback(row-1, col-1))
+                right_click_menu = self._make_right_click_menu(row-1, col-1)
+                button.bind("<Button-3>", lambda e, menu=right_click_menu: menu.tk_popup(e.x_root, e.y_root))
+                button.grid(row=row-1, column=col-1, padx=2, pady=2)
+                self.grid[row-1][col-1] = button
+
+            self.rows = len(self.grid)
+            self.cols = max((len(r) for r in self.grid if r), default=0)
+
+            if self.rows == 1:
+                self.buttons[ButtonType.COL]["display"] = "right"
+                if len(self.grid[0]) > 1:
+                    self.buttons[ButtonType.ROW]["display"] = True
+            elif self.rows % 2:
+                if len(self.grid[-1]) == self.cols:
+                    self.buttons[ButtonType.ROW]["display"] = True
+                else:
+                    self.buttons[ButtonType.COL]["display"] = "right"
+            else:
+                if self.grid[-1][0] is None:
+                    self.buttons[ButtonType.COL]["display"] = "left"
+                else:
+                    self.buttons[ButtonType.ROW]["display"] = True
+
+            self._render_buttons()
+            self._update_column_headers()
+            self._update_row_headers()
+            self.status_bar.config(text="Proyecto cargado. Listo para escanear.")
+
+        self.root.after(0, update_ui)
+
+
 
     def _new_grid_ui(self):
         self.label_warning.config(text="Atajos de teclado: (c) para escanear columnas, (f) para escanear filas.")
@@ -731,8 +785,3 @@ class MapView:
             pady=4
         )
         self.rotation_label.pack(side="right")
-
-        # self.root.after(0, lambda: (
-        #     self._cache_thumbnails(filepath, filename, row, col),
-        #     self._add_cell(new_row)
-        # ))

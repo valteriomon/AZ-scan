@@ -26,8 +26,7 @@ class AppState:
         prefix = self._state.get("last_scan", {}).get("prefix", None)
         if prefix:
             return prefix
-        prefix_list = self.get_prefix_list()
-        return prefix_list[0] if prefix_list else ""
+        return self.prefix_list[0] if self.prefix_list else ""
 
     @prefix.setter
     def prefix(self, value: str):
@@ -48,7 +47,6 @@ class AppState:
 
     @index.setter
     def index(self, value):
-        print(value)
         for prefix in self._state["prefixes"]:
             if prefix["code"] == self.prefix:
                 prefix["last_index"] = value
@@ -65,9 +63,10 @@ class AppState:
     @property
     def last_scan(self):
         last_folder = self._original_state.get("last_scan", {}).get("folder", None)
+        last_prefix = self._original_state.get("last_scan", {}).get("prefix", None)
         last_filename = self._original_state.get("last_scan", {}).get("filename", None)
-        if last_folder and last_filename:
-            return f"{os.path.join(last_folder, last_filename)}.{self.filetype}"
+        if last_folder and last_prefix and last_filename:
+            return f"{os.path.join(last_folder, last_prefix, last_filename)}.{self.filetype}"
         return "No encontrado."
 
     @property
@@ -77,12 +76,11 @@ class AppState:
     @property
     def next_scan(self) -> str:
         if self.folder and self.filename:
-            return f"{os.path.join(self.folder, self.filename)}.{self.filetype}"
+            return f"{os.path.join(self.folder, self.prefix, self.filename)}.{self.filetype}"
 
     @property
     def filename(self) -> str:
         self._state["last_scan"]["filename"] = f"{self.prefix}_{self.index}_{self.side}"
-        print(self._state["last_scan"]["filename"])
         return self._state["last_scan"]["filename"]
 
     @property
@@ -98,7 +96,6 @@ class AppState:
 
     def save_config(self):
         temp_state = copy.deepcopy(self._state)
-        # if self.side == "B":
         for prefix in temp_state["prefixes"]:
             if prefix["code"] == self.prefix:
                 prefix["last_index"] += 1

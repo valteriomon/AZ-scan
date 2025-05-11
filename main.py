@@ -5,7 +5,7 @@ import core.ui_styles  as styles
 from core.postcard_view import PostcardView
 from core.map_view import MapView
 import tkinter as tk
-from tkinter import ttk
+from tkinter import PhotoImage, ttk
 from tkinter import font
 from dotenv import load_dotenv
 
@@ -91,7 +91,7 @@ def main():
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description="Launch application with specified environment.")
     parser.add_argument('--env', choices=['dev', 'prod'], default='dev', help='Set the environment (dev or prod).')
-    parser.add_argument('--view', choices=['map', 'postcard'], help='Directly launch a specific view.')
+    parser.add_argument('--view', choices=['map', 'postcard', 'stitch'], help='Directly launch a specific view.')
     args = parser.parse_args()
 
     # Determine which environment to use
@@ -99,7 +99,8 @@ def main():
     load_dotenv(dotenv_path=f".env.{env}", override=True)
 
     root = tk.Tk()
-    root.iconbitmap("assets/images/logo32.ico")
+    icon = PhotoImage(file="assets/images/logo32.gif")
+    root.iconphoto(True, icon)
 
     if env == 'dev':
         dev_geometry = os.getenv('TKINTER_GEOMETRY', '')

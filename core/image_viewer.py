@@ -1,5 +1,6 @@
 import os
 import tkinter as tk
+from core.console import Console
 from PIL import Image, ImageTk
 import numpy as np
 from core.constants import APP_TITLE, VIEWER_VIEW_TITLE
@@ -60,6 +61,23 @@ class ImageViewer(tk.Frame):
 
     def _setup_widgets(self):
         self._create_canvas()
+        self._create_context_menu()
+        self.canvas.bind("<Button-3>", self._show_context_menu)
+
+    def _create_context_menu(self):
+        self.context_menu = tk.Menu(self, tearoff=0)
+        self.context_menu.add_command(label="Abrir", command=self._open_folder)
+
+    def _show_context_menu(self, event):
+        try:
+            self.context_menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            self.context_menu.grab_release()
+
+    def _open_folder(self):
+        path = os.path.abspath(self.filepath.get())
+        folder = os.path.dirname(path)
+        Console.open_folder(folder)
 
     def _on_resize(self, event):
         if self.pil_image:

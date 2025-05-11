@@ -1,7 +1,12 @@
+import os
+
 APP_TITLE = "AZ-scan - Escáner de Archivos - Fundación Azara"
 POSTCARD_VIEW_TITLE = "Postales"
 MAPS_VIEW_TITLE = "Mapas"
 VIEWER_VIEW_TITLE = "Visor"
+
+SCANNER_DRIVER = "wia" if os.getenv('ENVIRONMENT', 'prod') == 'dev' else "twain"
+SCANNER_DEVICE = "lide" if os.getenv('ENVIRONMENT', 'prod') == 'dev' else "twain"
 
 DEFAULT_STATE = {
     "prefixes": [
@@ -15,8 +20,8 @@ DEFAULT_STATE = {
     "options": {
         "scanner": {
             "naps2_path": "C:\\Program Files\\NAPS2\\NAPS2.Console.exe",
-            "driver": "wia",
-            "device": "lide",
+            "driver": SCANNER_DRIVER,
+            "device": SCANNER_DEVICE,
             "dpi": 600,
             "filetype": "png"
         }
@@ -25,6 +30,7 @@ DEFAULT_STATE = {
         "folder": None
     }
 }
+
 
 TKINTER_STYLES = {
     "BIG_FONT": {

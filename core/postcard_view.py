@@ -3,7 +3,7 @@ from core.app_state import AppState
 from core.image_viewer  import ImageViewer
 from core.console import Console
 from core.custom_error import FileAlreadyExistsError
-from core.ui_modules import Ui
+from core.ui_helpers import Ui
 from pathlib import Path
 import os
 import threading
@@ -11,7 +11,6 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
 from tkinter import messagebox
-from tkinter import font
 import core.ui_styles as styles
 
 class PostcardView:
@@ -55,12 +54,14 @@ class PostcardView:
         self.next_scan = tk.StringVar(value=self.state.next_scan)
         self.last_scan = tk.StringVar(value=self.state.last_scan)
 
-        # self.viewer_label_var = tk.StringVar(value="Sin escaneos")
+        self._update_prefix_folder()
 
         # Triggers updates
         self._bind_var(self.folder, lambda v: setattr(self.state, "folder", v), self._update_next_scan)
+        self._bind_var(self.folder, lambda v: setattr(self.state, "folder", v), self._update_prefix_folder)
         self._bind_var(self.prefix, lambda v: setattr(self.state, "prefix", v), self._update_next_scan)
         self._bind_var(self.prefix, lambda v: setattr(self.state, "prefix", v), self._update_index)
+        self._bind_var(self.prefix, lambda v: setattr(self.state, "prefix", v), self._update_prefix_folder)
         self._bind_var(self.index, lambda v: setattr(self.state, "index", int(v)) if v.isdigit() else None, self._update_next_scan)
         self._bind_var(self.side, lambda v: setattr(self.state, "side", v), self._update_next_scan)
 
@@ -90,7 +91,7 @@ class PostcardView:
             label_project_folder.grid(row=0, column=3, padx=4, pady=4, sticky="ew")
 
             # Save state
-            checkbox_save_state = ttk.Checkbutton(row, text="Recordar estado", variable=self.save_state, onvalue=True, offvalue=False)
+            checkbox_save_state = ttk.Checkbutton(row, text="Recordar posición", variable=self.save_state, onvalue=True, offvalue=False)
             checkbox_save_state.grid(row=0, column=4, padx=4, pady=4, sticky="e")
 
             row.columnconfigure(4, weight=1)
@@ -162,23 +163,26 @@ class PostcardView:
 
             row.columnconfigure(1, weight=1)
 
-        def _ui_preview(row):
-            row.grid(row=4, column=0, sticky="nsew", padx=4, pady=(14,5))
+        # def _ui_preview(row):
+        #     row.grid(row=4, column=0, sticky="nsew", padx=4, pady=(0,5))
 
         def _ui_navigation_row(row):
-            row.grid(row=5, column=0, sticky="ew")
+            # row.grid(row=5, column=0, sticky="ew")
 
-            button_redo_scan = ttk.Button(row, text="Rehacer escaneo", width=24, command=self._redo_scan, state=tk.DISABLED)
+            button_redo_scan = ttk.Button(row, text="Rehacer escaneo", width=18, command=self._redo_scan)
             button_redo_scan.grid(row=0, column=0, padx=4, pady=4, sticky="w")
 
-            button_delete_scan = ttk.Button(row, text="Eliminar", width=24, command=self._delete_scan, state=tk.DISABLED)
+            button_delete_scan = ttk.Button(row, text="Eliminar", width=18, command=self._delete_scan)
             button_delete_scan.grid(row=0, column=1, padx=4, pady=4, sticky="w")
 
+            self.label_viewer = ttk.Label(row, anchor="center", font=styles.FONT_DEFAULT_BOLD)  # anchor, not justify, centers content
+            self.label_viewer.grid(row=0, column=2, padx=4, pady=4, sticky="ew")
+
             # Navigation buttons frame
-            self.prev_btn = ttk.Button(row, text="← Anterior", command=self._previous_viewer, state=tk.DISABLED)
-            self.prev_btn.grid(row=0, column=2, padx=4, pady=4, sticky="e")
-            self.next_btn = ttk.Button(row, text="Siguiente →", command=self._next_viewer, state=tk.DISABLED)
-            self.next_btn.grid(row=0, column=3, padx=4, pady=4, sticky="e")
+            self.prev_btn = ttk.Button(row, text="← Anterior", width=18, command=self._previous_viewer, state=tk.DISABLED)
+            self.prev_btn.grid(row=0, column=3, padx=4, pady=4, sticky="e")
+            self.next_btn = ttk.Button(row, text="Siguiente →", width=18, command=self._next_viewer, state=tk.DISABLED)
+            self.next_btn.grid(row=0, column=4, padx=4, pady=4, sticky="e")
 
             row.columnconfigure(2, weight=1)
 
@@ -214,9 +218,10 @@ class PostcardView:
         _ui_third_row(ttk.Frame(main_frame))
 
         self.preview_frame = ttk.Frame(main_frame)
-        _ui_preview(self.preview_frame)
+        # _ui_preview(self.preview_frame)
 
-        _ui_navigation_row(ttk.Frame(main_frame))
+        self.navigation_row = ttk.Frame(main_frame)
+        _ui_navigation_row(self.navigation_row)
         _ui_status_row(tk.Frame(root, bg="#cccccc"))
 
     # #################################################
@@ -227,20 +232,15 @@ class PostcardView:
         self.next_scan.set(self.state.next_scan)
 
     def _update_index(self):
-    #     self.index.set(self.prefix_dict.get(self.prefix.get(), 1))
         self.index.set(self.state.index)
         self.side.set("A")
 
-    def update_ui(self):
+    def _update_ui(self):
         if self.side.get() == "A":
             self.side.set("B")
         else:
             self._increase_index()
             self.side.set("A")
-        # self.last_scan.set(self.state.last_scan)
-
-        # self.update_filenames()
-
         menu = self.dropdown_prefix["menu"]
         menu.delete(0, "end")
         for value in self.state.prefix_list:
@@ -262,7 +262,10 @@ class PostcardView:
         Console.open_folder(self.folder.get())
 
     def _open_file_folder(self):
-        pass
+        Console.open_folder(self.prefix_folder)
+
+    def _update_prefix_folder(self):
+        self.prefix_folder = f"{self.folder.get()}{os.path.sep}{self.prefix.get()}"
 
     def _decrease_index(self):
         index = self.index.get()
@@ -275,17 +278,6 @@ class PostcardView:
         if index.isdigit():
             self.index.set(int(index) + 1)
             self.side.set("A")
-
-    def _redo_scan(self):
-        pass
-
-    def _delete_scan(self, file_path):
-        pass
-    #     if os.path.exists(file_path):
-    #         os.remove(file_path)
-    #         print("File removed.")
-    #     else:
-    #         print("File does not exist.")
 
     def _scan(self):
 
@@ -300,60 +292,116 @@ class PostcardView:
                 self.state.index = int(index)
 
             try:
-                print(self.state.next_scan)
+                os.makedirs(self.prefix_folder, exist_ok=True)
+                if not os.path.isdir(self.prefix_folder):
+                    raise RuntimeError(f"No se pudo crear la carpeta del prefijo: {self.prefix_folder}")
+
+                if Path(self.state.next_scan).is_file():
+                    response = Ui.prompt(self.root, message=f"El archivo\n{self.state.next_scan}\nya existe, ¿desea sobreescribirlo?")
+                    if not response:
+                        return
                 Console().scan(self.state.next_scan)
+                self.navigation_row.grid(row=5, column=0, sticky="ew")
+                self.scan_button.config(state="normal")
+                self.status_label.config(text="Listo para escanear.")
                 if self.save_state.get():
                     self.state.save_config()
 
                 self.last_scan.set(self.state.next_scan)
                 next_scan = self.next_scan.get()
-                self.update_ui()
+                self._update_ui()
 
                 image_filename = os.path.abspath(next_scan)
+                self.preview_frame.grid(row=4, column=0, sticky="nsew", padx=4, pady=(14,5))
                 viewer = ImageViewer(self.preview_frame, image_filename, status_bar_enabled=False)
                 viewer.pack(fill=tk.BOTH, expand=True)
                 self.viewers.append(viewer)
-                self.show_viewer(len(self.viewers) - 1)
-
-                    # self.root.after(0, self.update_ui)
-        #     #         self.root.after(0, lambda: self.scan_button.config(state="normal"))
-        #     #         self.root.after(0, lambda: self.status_label.config(text="Escaneo finalizado. Listo para escanear."))
-
-
-            except FileAlreadyExistsError as e:
-    # #             self.root.after(0, lambda: self.scan_button.config(state="normal"))
-    # #             self.root.after(0, lambda: self.status_label.config(text=""))
-                self.root.after(0, lambda: messagebox.showerror(
-                    "Error",
-                    f"El siguiente archivo que se intenta crear ya existe:\n\n{next_file}\n\n"
-                    "Eliminar el archivo o actualizar el nombre del próximo escaneo."
-                ))
+                self._show_viewer(len(self.viewers) - 1)
+            except Exception as e:
                 self.status_label.config(text="Error: " + str(e))
         threading.Thread(target=do_scan, daemon=True).start()
 
-    def show_viewer(self, index):
+    def _show_viewer(self, index):
         for viewer in self.viewers:
             viewer.pack_forget()
 
         if 0 <= index < len(self.viewers):
             self.viewers[index].pack(fill=tk.BOTH, expand=True)
             self.current_index = index
-
-            # filename = Path(self.viewers[index].filepath.get()).name
-            # self.viewer_label_var.set(f"Escaneo {index + 1} de {len(self.viewers)} - {filename}")
-
-        # self.update_nav_buttons()
+            filename = Path(self.viewers[index].filepath.get()).name
+            # self.label_viewer.config(text=filename)
+            # self.last_scan.set()
+            self.label_viewer.config(text=f"Escaneo {index + 1} de {len(self.viewers)} - {filename}")
+            self._update_nav_buttons()
 
     def _previous_viewer(self):
-        pass
-    # #     if self.current_index > 0:
-    # #         self.show_viewer(self.current_index - 1)
+        if self.current_index > 0:
+            self._show_viewer(self.current_index - 1)
 
     def _next_viewer(self):
-        pass
-    # #     if self.current_index < len(self.viewers) - 1:
-    # #         self.show_viewer(self.current_index + 1)
+        if self.current_index < len(self.viewers) - 1:
+            self._show_viewer(self.current_index + 1)
 
-    # # def update_nav_buttons(self):
-    # #     self.prev_btn.config(state=tk.NORMAL if self.current_index > 0 else tk.DISABLED)
-    # #     self.next_btn.config(state=tk.NORMAL if self.current_index < len(self.viewers) - 1 else tk.DISABLED)
+    def _update_nav_buttons(self):
+        self.prev_btn.config(state=tk.NORMAL if self.current_index > 0 else tk.DISABLED)
+        self.next_btn.config(state=tk.NORMAL if self.current_index < len(self.viewers) - 1 else tk.DISABLED)
+
+    def _delete_scan(self):
+        if 0 <= self.current_index < len(self.viewers):
+            viewer = self.viewers[self.current_index]
+            filepath = viewer.filepath.get()
+
+            response = Ui.prompt(self.root, message=f"¿Seguro que desea eliminar el escaneo \n{filepath}?")
+            if not response:
+                return
+
+            try:
+                os.remove(filepath)
+            except Exception as e:
+                messagebox.showerror("Error al eliminar", f"No se pudo eliminar el archivo:\n\n{filepath}\n\n{e}")
+                return
+
+            del self.viewers[self.current_index]
+
+            preview_frame_children = self.preview_frame.winfo_children()
+            preview_frame_children[self.current_index].destroy()
+
+            if self.viewers:
+                # Stay at same index if possible, else go to previous
+                if self.current_index >= len(self.viewers):
+                    self.current_index = len(self.viewers) - 1
+                self._show_viewer(self.current_index)
+            else:
+                self.current_index = -1
+                self.preview_frame.grid_forget()
+                self.navigation_row.grid_forget()
+
+    def _redo_scan(self):
+        if 0 <= self.current_index < len(self.viewers):
+            old_viewer = self.viewers[self.current_index]
+            filepath = old_viewer.filepath.get()
+
+            response = Ui.prompt(self.root, message=f"¿Seguro que desea sobreescribir el escaneo {filepath}?")
+            if not response:
+                return
+
+            self.scan_button.config(state="disabled")
+            self.status_label.config(text="Escaneando...")
+
+            def do_scan():
+                try:
+                    directory = os.path.dirname(os.path.abspath(filepath))
+                    if not os.path.isdir(directory):
+                        raise RuntimeError(f"La carpeta del escaneo no existe: {directory}")
+                    Console().scan(filepath)
+                    old_viewer.destroy()
+                    image_filename = os.path.abspath(filepath)
+                    new_viewer = ImageViewer(self.preview_frame, image_filename, status_bar_enabled=False)
+                    new_viewer.grid(row=0, column=self.current_index)
+                    self.viewers[self.current_index] = new_viewer
+                    self._show_viewer(self.current_index)
+                    self.scan_button.config(state="normal")
+                    self.status_label.config(text="Listo para escanear.")
+                except FileAlreadyExistsError as e:
+                    self.status_label.config(text="Error: " + str(e))
+            threading.Thread(target=do_scan, daemon=True).start()

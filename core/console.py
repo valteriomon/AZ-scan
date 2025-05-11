@@ -1,4 +1,3 @@
-from .custom_error import FileAlreadyExistsError
 from .config import Config
 import os
 import platform, shutil
@@ -89,9 +88,6 @@ class Console:
     # Naps2 CLI
     # https://www.naps2.com/doc/command-line
     def scan(self, output_filepath) -> bool:
-        # if Path(output_filepath).is_file():
-            # raise FileAlreadyExistsError(f"File already exists: {output_filepath}")
-
         command_values = {
             "naps2_path": self._options["scanner"]["naps2_path"],
             "driver": self._options["scanner"]["driver"],

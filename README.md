@@ -4,60 +4,28 @@
 
 # TO DO
 
-## Map view
-- Set map size
-- Drag and drop joints generator
-- Log errors
-
-
-## Postcard view
+## Postcard view (ImageViewer + ImageEditor)
 - P0
-    - Add "repeat/remake last scan" button
-    - Preview scan
-    - If code folder not created, create it
-        - Check path name if matches code, if not create folder
-    - Delete last scan option
-    - Split saves into folders depending prefix
-    - "Next" button?
-        - Scan + Next instead of auto-update
-            - Ask to delete previous scan
-    - Skip B side
-    - Checkbox "Guardar posición"
-
-    - State not saving until you scan again, so "next" is last when you reopen
-
-    - Enable scan button only if new and last scan are named differently (check last scan exists).
-    - Enable scan button only after previous task finishes.
-    - Catch scanner error
-        - Acts as save, turns off on manual index change
+    - Add help, shortcuts, info on how to use
     - Right click option, open editor
-    - Split in-viewer options into a new class
     - Image viewer: Left click - Zoom out
         - Add quick rotate and save
 - P1
-    - Edit scan > Parallel to scan program (crop while scanning > Go back and forth between scans?)
+    - Catch scanner error
+            - Acts as save, turns off on manual index change
+    - Edit scan > Parallel to scan program
         - Crop
         - Autocrop > ImageMagick or OpenCV?
         - Rotate by 90 degrees
         - Slight rotate
         - Undo action
-- P2
-    - Make font bigger
-    - Bold on filenames
-    - Add help, shortcuts, info on how to use
 
 
-
-
-
-## Main
 - P0
-    - Add filename to viewer window
-    - Check unused requirements
-- P1
+- P2
+    - Check unused requirements.txt
     - Remove git_pull hardcoded directories
     - Launch Editor
-- P2
     - Improve updating remotely
         - Remove dev libraries from compilation
         - Patching option for data files?
