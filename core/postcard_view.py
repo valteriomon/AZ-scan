@@ -40,8 +40,8 @@ class PostcardView:
         self.current_index = -1  # Index of currently visible viewer
 
     def _key_bindings(self):
-        self.root.bind("<Return>", lambda event: self.scan())
-        self.root.bind("<KP_Enter>", lambda event: self.scan())
+        self.root.bind("<Return>", lambda event: self._scan())
+        self.root.bind("<KP_Enter>", lambda event: self._scan())
 
     def _set_vars(self):
         self.folder = tk.StringVar(value=self.state.folder)

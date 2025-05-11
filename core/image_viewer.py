@@ -66,7 +66,7 @@ class ImageViewer(tk.Frame):
 
     def _create_context_menu(self):
         self.context_menu = tk.Menu(self, tearoff=0)
-        self.context_menu.add_command(label="Abrir", command=self._open_folder)
+        self.context_menu.add_command(label="Abrir ubicación de archivo", command=self._open_folder)
 
     def _show_context_menu(self, event):
         try:
@@ -260,7 +260,7 @@ class ImageViewer(tk.Frame):
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Simple responsive image viewer.")
+    parser = argparse.ArgumentParser(description="Image viewer.")
     parser.add_argument("image", help="Path to the image file.")
     args = parser.parse_args()
 
