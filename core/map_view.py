@@ -39,7 +39,7 @@ class MapView:
         self.scanning = False
         self.rotation_angle = 0
 
-        self.button_pixel_size = (200, 200)
+        self.button_pixel_size = (120, 120)
 
         self._config = Config().load()
         self._filetype = self._config.get("options", {}).get("scanner", {}).get("filetype", "png") or "png"

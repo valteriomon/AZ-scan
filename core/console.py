@@ -105,6 +105,7 @@ class Console:
             '--driver', command_values["driver"],
             '--device', command_values["device"],
             '--dpi', command_values["dpi"],
+            '--pagesize', '216x297mm',
             '--force'
         ]
         self.run(command)

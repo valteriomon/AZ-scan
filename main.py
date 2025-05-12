@@ -100,12 +100,12 @@ def main():
 
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description="Launch application with specified environment.")
-    parser.add_argument('--env', choices=['dev', 'prod'], default='dev', help='Set the environment (dev or prod).')
+    parser.add_argument('--env', choices=['dev', 'prod'], default='prod', help='Set the environment (dev or prod).')
     parser.add_argument('--view', choices=['map', 'postcard', 'stitch'], help='Directly launch a specific view.')
     args = parser.parse_args()
 
     # Determine which environment to use
-    env = args.env if args.env else os.getenv('ENVIRONMENT', 'prod')
+    env = args.env if args.env else os.getenv('ENVIRONMENT')
     load_dotenv(dotenv_path=f".env.{env}", override=True)
 
     root = tk.Tk()

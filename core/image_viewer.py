@@ -17,7 +17,6 @@ class ImageViewer(tk.Frame):
 
         if self.is_main_window:
             master.geometry("900x600")
-            master.geometry("-1200+200")
             master.title(self.title)
             try:
                 master.iconbitmap("assets/images/logo32.ico")
