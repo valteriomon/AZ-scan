@@ -4,6 +4,7 @@ from core.constants import APP_TITLE
 import core.ui_styles  as styles
 from core.postcard_view import PostcardView
 from core.map_view import MapView
+from core.stitcher_view import StitcherView
 import tkinter as tk
 from tkinter import PhotoImage, ttk
 from tkinter import font
@@ -15,8 +16,9 @@ def startup_window(root):
         widget.destroy()
 
     # Set window options
-    width, height = 600, 320
+    width, height = 600, 450
     root.title(APP_TITLE)
+    root.state("normal")
     root.geometry(f"{width}x{height}")
     root.minsize(width, height)
     root.resizable(False, False)
@@ -57,6 +59,14 @@ def startup_window(root):
         text="Documentos de gran formato como mapas o láminas.",
         font=styles.FONT_MEDIUM
     ).grid(row=3, column=0, padx=10, pady=(0, 0))
+
+    separator = ttk.Separator(frame, orient='horizontal')
+    separator.grid(row=4, column=0, sticky="ew", padx=10, pady=30)
+
+    # Stitch button
+    stitch_button = ttk.Button(frame, text="Unir cuadrícula", command=lambda: launch_app(root, StitcherView))
+    stitch_button.grid(row=5, column=0, sticky="ew", padx=10, pady=(0, 5), ipadx=10, ipady=10)
+    stitch_button.configure(style="Big.TButton")
 
     # Key bindings
     root.bind("<m>", lambda event: launch_app(root, MapView))
@@ -128,6 +138,8 @@ def main():
         launch_app(root, MapView)
     elif args.view == "postcard":
         launch_app(root, PostcardView)
+    elif args.view == "stitch":
+        launch_app(root, StitcherView)
     else:
         startup_window(root)
 

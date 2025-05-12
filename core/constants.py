@@ -1,8 +1,9 @@
 import os
 
 APP_TITLE = "AZ-scan - Escáner de Archivos - Fundación Azara"
-POSTCARD_VIEW_TITLE = "Postales"
-MAPS_VIEW_TITLE = "Mapas"
+POSTCARD_VIEW_TITLE = "Escaneo simple"
+MAPS_VIEW_TITLE = "Cuadrícula"
+STITCHER_VIEW_TITLE = "Unir cuadrícula"
 VIEWER_VIEW_TITLE = "Visor"
 EDITOR_VIEW_TITLE = "Editor"
 
