@@ -37,6 +37,7 @@ class PostcardView:
         self.resize_after_id = None
 
         self.viewers = []
+        self.active_viewer = None
         self.current_index = -1  # Index of currently visible viewer
 
     def _key_bindings(self):
@@ -240,7 +241,6 @@ class PostcardView:
             self.side.set("B")
         else:
             self._increase_index()
-            self.side.set("A")
         menu = self.dropdown_prefix["menu"]
         menu.delete(0, "end")
         for value in self.state.prefix_list:
@@ -301,20 +301,18 @@ class PostcardView:
                     if not response:
                         return
                 Console().scan(self.state.next_scan)
+
                 self.navigation_row.grid(row=5, column=0, sticky="ew")
-                self.scan_button.config(state="normal")
-                self.status_label.config(text="Listo para escanear.")
                 if self.save_state.get():
                     self.folder.set(self.state.folder)
-                    self.prefix.set(self.state.prefix)
                     self.state.save_config()
-
                 self.last_scan.set(self.state.next_scan)
-                next_scan = self.next_scan.get()
-                self._update_ui()
 
-                image_filename = os.path.abspath(next_scan)
+                self._update_ui()
+                self.scan_button.config(state="normal")
+                self.status_label.config(text="Listo para escanear.")
                 self.preview_frame.grid(row=4, column=0, sticky="nsew", padx=4, pady=(14,5))
+                image_filename = os.path.abspath(self.last_scan.get())
                 viewer = ImageEditor(self.preview_frame, image_filename, status_bar_enabled=False)
                 viewer.pack(fill=tk.BOTH, expand=True)
                 self.viewers.append(viewer)
@@ -329,6 +327,7 @@ class PostcardView:
 
         if 0 <= index < len(self.viewers):
             self.viewers[index].pack(fill=tk.BOTH, expand=True)
+            self.viewers[index].focus_set()
             self.current_index = index
             filename = Path(self.viewers[index].filepath.get()).name
             # self.label_viewer.config(text=filename)
@@ -398,7 +397,7 @@ class PostcardView:
                     Console().scan(filepath)
                     old_viewer.destroy()
                     image_filename = os.path.abspath(filepath)
-                    new_viewer = ImageViewer(self.preview_frame, image_filename, status_bar_enabled=False)
+                    new_viewer = ImageEditor(self.preview_frame, image_filename, status_bar_enabled=False)
                     new_viewer.grid(row=0, column=self.current_index)
                     self.viewers[self.current_index] = new_viewer
                     self._show_viewer(self.current_index)

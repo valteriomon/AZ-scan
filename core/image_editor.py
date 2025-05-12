@@ -17,6 +17,7 @@ from core.constants import APP_TITLE, EDITOR_VIEW_TITLE
 class ImageEditor(ImageViewer):
     def __init__(self, master, filepath, status_bar_enabled=False):
         super().__init__(master, filepath, status_bar_enabled)
+        self.master = master
         self.title = f"{APP_TITLE} - {EDITOR_VIEW_TITLE}"
         self.original_image = None
         # Rotations are applied on cropped image
@@ -38,18 +39,23 @@ class ImageEditor(ImageViewer):
             self.editor_top_tool_frame = tk.Frame(self.layout_frame, padx=5, pady=5)
             self.editor_top_tool_frame.pack(side=tk.TOP, fill=tk.X)
 
-            self.advanced_mode_var = tk.BooleanVar(value=False)
-            self.advanced_mode_var.trace_add("write", self._toggle_advanced_mode)
             self.rotation_angle_var = tk.DoubleVar(value=0.0)
             self.rotation_angle_var.trace_add("write", self._update_rotation_label)
 
             self.editor_top_basic_tools = tk.Frame(self.editor_top_tool_frame, padx=5, pady=5)
             self.editor_top_basic_tools.pack(side=tk.TOP, fill=tk.X)
 
-            ttk.Button(self.editor_top_basic_tools, text="⟲ Rotar en sentido antihorario (d)", command=self._rotate_left, width=30).pack(side="left")
-            ttk.Button(self.editor_top_basic_tools, text="⟳ Rotar en sentido horario (f)", command=self._rotate_right, width=30).pack(side="left")
+            ttk.Button(self.editor_top_basic_tools, text="⟲ Rotar en sentido antihorario", command=self._rotate_left, width=30).pack(side="left")
+            ttk.Button(self.editor_top_basic_tools, text="⟳ Rotar en sentido horario", command=self._rotate_right, width=30).pack(side="left")
 
-            ttk.Checkbutton(self.editor_top_basic_tools, text="Modo editor (e)", variable=self.advanced_mode_var).pack(side="right", padx=(20, 0))
+            # ttk.Label(self.editor_top_basic_tools, text=f"Rotación fina:").pack(side="left", padx=10)
+            self.fine_rotation_var = tk.StringVar(value="0.5")
+
+            # ttk.Radiobutton(self.editor_top_basic_tools, text="0.1°", variable=self.fine_rotation_var, value="0.1").pack(side='left', padx=5)
+            # ttk.Radiobutton(self.editor_top_basic_tools, text="0.5°", variable=self.fine_rotation_var, value="0.5").pack(side='left', padx=5)
+            # ttk.Radiobutton(self.editor_top_basic_tools, text="1°", variable=self.fine_rotation_var, value="1").pack(side='left', padx=5)
+            # ttk.Radiobutton(self.editor_top_basic_tools, text="5°", variable=self.fine_rotation_var, value="5").pack(side='left', padx=5)
+
             self.rotation_label = ttk.Label(self.editor_top_basic_tools, text=f"Rotación actual: 0°")
             self.rotation_label.pack(side="right")
 
@@ -57,31 +63,15 @@ class ImageEditor(ImageViewer):
             self.editor_bottom_tool_frame = tk.Frame(self.layout_frame, padx=0, pady=5)
             self.editor_bottom_tool_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
-            ttk.Button(self.editor_bottom_tool_frame, text="Deshacer (ctrl + z)", command=self._undo, width=18).pack(side="left", padx=(0,8))
-            ttk.Button(self.editor_bottom_tool_frame, text="Resetear", command=self._reset_original, width=18).pack(side="left")
-            ttk.Button(self.editor_bottom_tool_frame, text="Guardar (ctrl + s)", command=self._save, width=18).pack(side="right", padx=(8,0))
+            # ttk.Button(self.editor_bottom_tool_frame, text="Deshacer (ctrl + z)", command=self._undo, width=18).pack(side="left", padx=(0,8))
+            # ttk.Button(self.editor_bottom_tool_frame, text="Resetear", command=self._reset_original, width=18).pack(side="left")
+            self.save_button = ttk.Button(self.editor_bottom_tool_frame, text="Guardar", command=self._save, width=18)
+            self.save_button.pack(side="right", padx=(8,0))
             ttk.Button(self.editor_bottom_tool_frame, text="Abrir carpeta", command=self._open_folder, width=18).pack(side="right")
 
-        def _create_editor_advanced_toolbar():
-            self.editor_advanced_tool_frame = tk.Frame(self.editor_top_tool_frame, padx=5, pady=5)
-
-            self.rotation_horizon_var = tk.BooleanVar(value=False)
-            # self.rotation_horizon_var.trace_add("write", self._toggle_advanced_mode)
-
-            ttk.Checkbutton(self.editor_advanced_tool_frame, text="Horizonte de rotación (r)", variable=self.rotation_horizon_var).pack(side="left", padx=(0,10))
-
-            ttk.Label(self.editor_advanced_tool_frame, text=f"Rotación fina (t):").pack(side="left")
-            self.fine_rotation_var = tk.StringVar(value="0.5")
-
-            ttk.Radiobutton(self.editor_advanced_tool_frame, text="0.1", variable=self.fine_rotation_var, value="0.1").pack(side='left', padx=5)
-            ttk.Radiobutton(self.editor_advanced_tool_frame, text="0.5", variable=self.fine_rotation_var, value="0.5").pack(side='left', padx=5)
-            ttk.Radiobutton(self.editor_advanced_tool_frame, text="1", variable=self.fine_rotation_var, value="1").pack(side='left', padx=5)
-            ttk.Radiobutton(self.editor_advanced_tool_frame, text="5", variable=self.fine_rotation_var, value="5").pack(side='left', padx=5)
-
         _create_editor_top_toolbar()
-        _create_editor_advanced_toolbar()
         super()._setup_widgets()
-        _create_editor_bottom_toolbar()
+        # _create_editor_bottom_toolbar()
 
     def _set_initial_state(self, event=None):
         self.rotation_angle = 0
@@ -97,46 +87,46 @@ class ImageEditor(ImageViewer):
         # Crop tool variables
         self.crop_start = None
         self.crop_rect = None
-        # self.advanced_editor = False
-        # self.editing = False
         # self.start_x = self.start_y = None
         # self.temp_guides = []  # Two guide line IDs during Alt-drag
         # self.guide_stack = []  # Stores both lines per guide crosshair
 
     def _update_rotation_label(self, *args):
         display_angle = round(self.rotation_angle_var.get(), 1)
-
         if isinstance(display_angle, float) and display_angle.is_integer():
             display_angle = int(display_angle)
-
         self.rotation_label.config(text=f"Rotación: {display_angle}°")
-
-    def _toggle_advanced_mode(self, *args):
-        advanced_mode = self.advanced_mode_var.get()
-        if advanced_mode:
-            self.editor_advanced_tool_frame.pack(side=tk.TOP, fill=tk.X)
-        else:
-            self.editor_advanced_tool_frame.pack_forget()
-
-    # def _toggle_rotation_horizon(self, *args):
-    #     self.rotation_horizon = self.advanced_mode_var.get()
 
     def _save(self, event=None):
         image_path = self.filepath.get()
         if self.pil_image and image_path:
-            # Backup first
-            base, ext = os.path.splitext(image_path)
-            human_timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-            backup_path = f"{base}.{human_timestamp}.bak.{ext}"
-            if not os.path.exists(backup_path):
-                shutil.copy2(image_path, backup_path)
-            else:
-                print(f"Backup already exists at: {backup_path}")
+            # self.save_button.config(state="disabled")
+
             # Save (overwrite)
             self.pil_image.save(image_path)
-            print(f"Image saved and original backed up at: {backup_path}")
+            # self.save_button.config(state="normal")
         else:
             print("No image loaded or original path unknown.")
+
+    def _backup(image_path):
+
+        # Prepare backup folder
+        base_dir = os.path.dirname(image_path)
+        backup_dir = os.path.join(base_dir, "Escaneos originales")
+        os.makedirs(backup_dir, exist_ok=True)  # Create if it doesn't exist
+
+        # Create timestamped backup filename
+        base_name, ext = os.path.splitext(os.path.basename(image_path))
+        human_timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+        backup_filename = f"{base_name}.{human_timestamp}.bak{ext}"
+        backup_path = os.path.join(backup_dir, backup_filename)
+
+        # Backup original file
+        if not os.path.exists(backup_path):
+            shutil.copy2(image_path, backup_path)
+        else:
+            print(f"Backup already exists at: {backup_path}")
+
 
     def _undo(self, event=None):
         if self.image_stack:
@@ -188,20 +178,15 @@ class ImageEditor(ImageViewer):
             self._level_line_press(event)
     #         self._ImageViewer__old_event = event
         elif event.state & 0x0004:  # Control key
-
             self._crop_press(event)
-            # pass
         else:
             super()._mouse_press_left(event)
 
     def _mouse_release_left(self, event):
         if event.state & 0x0001:  # Shift key
             self._level_line_release(event)
-            print("_mouse_release_left")
         elif event.state & 0x0004:  # Control key
-
             self._crop_release(event)
-            # pass
 
     def _mouse_move_left(self, event):
 
@@ -270,20 +255,19 @@ class ImageEditor(ImageViewer):
     Rotation
     """
     def _rotate_left(self, event=None):
-        self._rotate_image(90)
+        self._rotate_image(90, self._save)
 
     def _rotate_right(self, event=None):
-        self._rotate_image(-90)
+        self._rotate_image(-90, self._save)
 
     def _fine_rotate(self, angle):
         self._rotate_image(angle)
 
-    def _rotate_image(self, angle):
+    def _rotate_image(self, angle, callback=None):
         def worker():
             if self.pil_image:
                 self.total_rotation = (self.rotation_angle - angle) % 360
                 self.rotation_angle = self.total_rotation
-
                 # rotated = self.original_image.rotate(-self.total_rotation, expand=True, resample=Image.BICUBIC)
                 rotated = self.cropped_image.rotate(-self.total_rotation, expand=True, resample=Image.BICUBIC)
                 self.image_stack.append({
@@ -291,13 +275,15 @@ class ImageEditor(ImageViewer):
                     "rotation_angle": self.total_rotation
                 })
                 # self.rotation_angle_var.set(self.total_rotation)
-                self.after(0, lambda: self._apply_rotation_result(rotated))
+                self.after(0, lambda: self._apply_rotation_result(rotated, callback=callback))
 
         threading.Thread(target=worker, daemon=True).start()
 
-    def _apply_rotation_result(self, rotated_image):
+    def _apply_rotation_result(self, rotated_image, callback=None):
         self.pil_image = rotated_image
         self.rotation_angle_var.set(self.total_rotation)
+        if callback:
+            callback()
         self._zoom_fit()
 
     """
@@ -473,22 +459,20 @@ class ImageEditor(ImageViewer):
     Bindings
     """
     def _add_bindings(self):
-        self.master.bind_all("<Control-z>", self._undo)
-        self.master.bind_all("<Control-s>", self._save)
-        self.master.bind_all("<e>", lambda e: self.advanced_mode_var.set(not self.advanced_mode_var.get()))
-        self.master.bind_all("<E>", lambda e: self.advanced_mode_var.set(not self.advanced_mode_var.get()))
-        self.master.bind_all("<f>", self._rotate_right)
-        self.master.bind_all("<F>", self._rotate_right)
-        self.master.bind_all("<d>", self._rotate_left)
-        self.master.bind_all("<D>", self._rotate_left)
-        self.master.bind_all("<r>", self._cycle_fine_rotation)
-        self.master.bind_all("<R>", self._cycle_fine_rotation)
-        self.master.bind_all("<t>", lambda e: self.rotation_horizon_var.set(not self.rotation_horizon_var.get()))
-        self.master.bind_all("<T>", lambda e: self.rotation_horizon_var.set(not self.rotation_horizon_var.get()))
-        self.master.bind_all("<ButtonRelease-1>", self._mouse_release_left)
-        self.master.bind_all("<Control_L>", self._on_ctrl_press)
-        self.master.bind_all("<KeyRelease-Control_L>", self._on_ctrl_release)
-        self.master.bind_all("<h>", self._autocrop)
+        pass
+        # self.master.bind_all("<Control-z>", self._undo)
+        # self.master.bind_all("<Control-s>", self._save)
+        # self.master.bind_all("<f>", self._rotate_right)
+        # self.master.bind_all("<F>", self._rotate_right)
+        # self.master.bind_all("<d>", self._rotate_left)
+        # self.master.bind_all("<D>", self._rotate_left)
+        # self.master.bind_all("<r>", self._cycle_fine_rotation)
+        # self.master.bind_all("<R>", self._cycle_fine_rotation)
+        # self.canvas.bind("<ButtonRelease-1>", self._mouse_release_left)
+        # self.canvas.bind("<Control_L>", self._on_ctrl_press)
+        # self.canvas.bind("<KeyRelease-Control_L>", self._on_ctrl_release)
+        # self.canvas.focus_set()
+
         # self.master.bind_all("<Control-Button-1>", self._crop_press)
         # Bind crop tool events to the canvas
         # self.master.bind_all("<Control-Button-1>", self.start_crop)

@@ -1,10 +1,24 @@
 prefixes:
 - code: 00_TBD
-  last_index: 34
+  last_index: 55
+- code: 01_P-PO
+  last_index: 6
+- code: 02_P-PPA
+  last_index: 7
+- code: 03_P-POP
+  last_index: 8
+- code: 04_P-CFF
+  last_index: 13
+- code: 04_P-COA
+  last_index: 18
+- code: 04_P-MBZ
+  last_index: 11
+- code: 04_P-POV
+  last_index: null
 last_scan:
   prefix: 00_TBD
   folder: C:\Users\Wally
-  filename: 00_TBD_33_A
+  filename: 00_TBD_54_A
 options:
   scanner:
     naps2_path: C:\Program Files\NAPS2\NAPS2.Console.exe
@@ -13,4 +27,4 @@ options:
     dpi: 600
     filetype: png
 multi_scan:
-  folder: null
+  folder: C:\Users\Wally
