@@ -31,7 +31,6 @@ class PostcardView:
         # Lock window size to content
         self.root.update_idletasks()
         width, height = self.root.winfo_width(), self.root.winfo_height()
-        self.root.minsize(width, height)
 
         # Let the geometry be determined by the content
         self.resize_after_id = None
