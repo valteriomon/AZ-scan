@@ -5,7 +5,6 @@
 # TO DO
 - Catch scanner errors.
 - Check unused requirements.txt
-- Remove git_pull hardcoded directories
 - Launch ImageEditor
 - Improve updating remotely
     - Remove dev libraries from compilation

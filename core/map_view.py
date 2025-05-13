@@ -53,16 +53,20 @@ class MapView:
         self.root.bind("<Key-F>", self._on_key_f)
 
     def _on_key_c(self, event):
-        if getattr(self, "col_scan_enabled", False):
+        if self.buttons[ButtonType.COL]["display"]:
             self._scan_next()
+        else:
+            self._scan_next(new_row=True)
 
     def _on_key_f(self, event):
-        if getattr(self, "row_scan_enabled", False):
+        if self.buttons[ButtonType.ROW]["display"]:
             self._scan_next(new_row=True)
+        else:
+            self._scan_next()
 
     def _build_ui(self, root):
         def top_frame(frame):
-            frame.pack(fill="both", expand=False, padx=40, pady=(10, 0))
+            frame.pack(fill="both", expand=False, padx=100, pady=(10, 0))
 
             frame.columnconfigure(0, weight=1)
             frame.columnconfigure(1, weight=0)
@@ -282,7 +286,7 @@ class MapView:
             widget.destroy()
         # Reset column weights to ensure proper spacing
         for col in range(self.cols):
-            self.header_frame.grid_columnconfigure(col, weight=0, minsize=self.button_pixel_size[0])
+            self.header_frame.grid_columnconfigure(col, weight=0, minsize=self.button_pixel_size[0]+4)
         # Define bold, larger font
         header_font = tkfont.Font(weight="bold", size=12)  # Increase size as needed
         for col in range(self.cols):
@@ -300,7 +304,7 @@ class MapView:
             widget.destroy()
         # Reset row weights and sizes
         for row in range(self.rows):
-            self.side_frame.grid_rowconfigure(row, weight=0, minsize=self.button_pixel_size[1])
+            self.side_frame.grid_rowconfigure(row, weight=0, minsize=self.button_pixel_size[1]+4)
         # Define bold, larger font
         header_font = tkfont.Font(weight="bold", size=12)
         extra_row = self.buttons[ButtonType.ROW]["display"]
@@ -494,8 +498,9 @@ class MapView:
         menu = tk.Menu(self.root, tearoff=0)
         menu.add_command(label="Ver", command=lambda: self._view_scan(filepath))
         menu.add_command(label="Re-escanear", command=lambda: self._rescan(r+1, c+1,filepath))
-        menu.add_command(label="⟳ Rotar 90°", command=lambda: self._rotate_image_clockwise(r+1, c+1))
-        menu.add_command(label="⟲ Rotar -90°", command=lambda: self._rotate_image_counterclockwise(r+1, c+1))
+        menu.add_command(label="⟳ Rotar 90°", command=lambda: self._rotate_image(r+1, c+1, -90))
+        menu.add_command(label="⟲ Rotar -90°", command=lambda: self._rotate_image(r+1, c+1, 90))
+        menu.add_command(label="⟳ Rotar 180°", command=lambda: self._rotate_image(r+1, c+1, -180))
         return menu
 
     def _get_file_path(self, row, col):
@@ -533,6 +538,7 @@ class MapView:
                 Console().scan(filepath)
                 if self.rotation_angle != 0:
                     img = Image.open(filepath)
+                    # self.rotation_angle = (self.rotation_angle + angle) % 360
                     rotated = img.rotate(-self.rotation_angle, expand=True)
                     rotated.save(filepath)
                 self.status_bar.config(text="Escaneo finalizado. Listo para escanear.")
@@ -625,16 +631,6 @@ class MapView:
         btn = self.grid[row-1][col-1]
         if btn:
             btn.configure(image=self.image_cache.get(f"{row}-{col}"))
-
-    def _rotate_all_images_clockwise(self):
-        self.rotation_angle = (self.rotation_angle + 90) % 360
-        self.rotation_label_var.set(value=f"Rotación actual: {self.rotation_angle}°")
-        self._rotate_all_images(angle=-90)
-
-    def _rotate_all_images_counterclockwise(self):
-        self.rotation_angle = (self.rotation_angle - 90) % 360
-        self.rotation_label_var.set(value=f"Rotación actual: {self.rotation_angle}°")
-        self._rotate_all_images(angle=90)
 
     def _rotate_all_images(self, angle):
         self.status_bar.config(text="Rotando imágenes...")
@@ -766,22 +762,20 @@ class MapView:
         self.root.after(0, update_ui)
 
 
-
     def _new_grid_ui(self):
         self.label_warning.config(text="Atajos de teclado: (c) para escanear columnas, (f) para escanear filas.")
         self._bind_keys()
         self._set_project_folder()
-        rotate_right_btn = tk.Button(self.bottom_frame, text="⟳ Rotar todo", command=self._rotate_all_images_clockwise, bg="#cccccc", activebackground="#bbbbbb", relief="flat")
-        rotate_right_btn.pack(side="right", padx=(5, 0))
-        rotate_left_btn = tk.Button(self.bottom_frame, text="⟲ Rotar todo", command=self._rotate_all_images_counterclockwise, bg="#cccccc", activebackground="#bbbbbb", relief="flat")
-        rotate_left_btn.pack(side="right", padx=(5, 0))
-        self.rotation_label_var = tk.StringVar(value=f"Rotación actual: {self.rotation_angle}°")
-        self.rotation_label = tk.Label(
-            self.bottom_frame,
-            textvariable=self.rotation_label_var,
-            bg="#cccccc",
-            fg="#171717",
-            padx=5,
-            pady=4
-        )
-        self.rotation_label.pack(side="right")
+
+        tk.Button(self.bottom_frame, text="⟳ 180°", command=lambda: self._rotate_all_images(-180), bg="#cccccc", activebackground="#bbbbbb", relief="flat").pack(side="right", padx=(5, 0))
+        tk.Button(self.bottom_frame, text="⟲ -90°", command=lambda: self._rotate_all_images(90), bg="#cccccc", activebackground="#bbbbbb", relief="flat").pack(side="right", padx=(5, 0))
+        tk.Button(self.bottom_frame, text="⟳ 90°", command=lambda: self._rotate_all_images(-90), bg="#cccccc", activebackground="#bbbbbb", relief="flat").pack(side="right", padx=(2, 0))
+
+        self.rotation_angle_var = tk.IntVar(value=0)
+        self.rotation_angle_var.trace_add("write", self._update_rotation_angle)
+        tk.Label(self.bottom_frame, text="Rotar todo", bg="#cccccc", fg="#171717", pady=4).pack(side="right", padx=(20,0))
+        ttk.Combobox(self.bottom_frame, textvariable=self.rotation_angle_var, values=["0", "90", "-90", "180"], state="readonly", width=6, justify="center").pack(side="right", padx=(5, 0))
+        tk.Label(self.bottom_frame, text="Rotar siguientes", bg="#cccccc", fg="#171717", padx=2, pady=4).pack(side="right")
+
+    def _update_rotation_angle(self, *args):
+        self.rotation_angle = int(self.rotation_angle_var.get())

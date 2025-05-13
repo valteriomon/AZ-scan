@@ -52,7 +52,7 @@ class PostcardView:
         self.index = tk.StringVar(value=self.state.index)
         self.side = tk.StringVar(value=self.state.side)
 
-        self.next_scan = tk.StringVar(value=self.state.next_scan)
+        self.next_scan = tk.StringVar(value=self.state.filename)
         self.last_scan = tk.StringVar(value=self.state.last_scan)
 
         self._update_prefix_folder()
@@ -91,11 +91,17 @@ class PostcardView:
             label_project_folder = ttk.Label(row, textvariable=self.folder, font=styles.FONT_DEFAULT_BOLD)
             label_project_folder.grid(row=0, column=3, padx=4, pady=4, sticky="ew")
 
+            label_prefix_folder_description = ttk.Label(row, text="Subcarpeta:")
+            label_prefix_folder_description.grid(row=0, column=4, padx=4, pady=4)
+
+            label_prefix_folder = ttk.Label(row, textvariable=self.prefix, font=styles.FONT_DEFAULT_BOLD)
+            label_prefix_folder.grid(row=0, column=5, padx=4, pady=4, sticky="ew")
+
             # Save state
             checkbox_save_state = ttk.Checkbutton(row, text="Recordar posición", variable=self.save_state, onvalue=True, offvalue=False)
-            checkbox_save_state.grid(row=0, column=4, padx=4, pady=4, sticky="e")
+            checkbox_save_state.grid(row=0, column=6, padx=4, pady=4, sticky="e")
 
-            row.columnconfigure(4, weight=1)
+            row.columnconfigure(6, weight=1)
 
         def _ui_second_row(row):
             row.grid(row=1, column=0, sticky="ew")
@@ -230,7 +236,7 @@ class PostcardView:
     # #################################################
 
     def _update_next_scan(self):
-        self.next_scan.set(self.state.next_scan)
+        self.next_scan.set(self.state.filename)
 
     def _update_index(self):
         self.index.set(self.state.index)
