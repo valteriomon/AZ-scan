@@ -115,12 +115,12 @@ class PostcardView:
             self.dropdown_prefix.grid(row=0, column=1, padx=4, pady=4)
             self.dropdown_prefix.config(width=10)
 
-            entry_prefix = ttk.Entry(row, textvariable=self.prefix, width=10)
+            entry_prefix = ttk.Entry(row, textvariable=self.prefix, width=8)
             entry_prefix.grid(row=0, column=2, padx=4, pady=4)
 
             #  Index
             label_index = ttk.Label(row, text="Número:")
-            label_index.grid(row=0, column=3, padx=(30,4), pady=4)
+            label_index.grid(row=0, column=3, padx=(8,4), pady=4)
 
             entry_index = ttk.Entry(row, textvariable=self.index, width=5, justify="center")
             entry_index.grid(row=0, column=5, padx=4, pady=4)
@@ -131,7 +131,7 @@ class PostcardView:
 
             # Side
             label_side = ttk.Label(row, text="Lado:")
-            label_side.grid(row=0, column=8, padx=(30,4), pady=4)
+            label_side.grid(row=0, column=8, padx=(8,4), pady=4)
 
             radio_side_a = ttk.Radiobutton(row, text="A", variable=self.side, value="A")
             radio_side_a.grid(row=0, column=9, padx=4, pady=4)
@@ -140,14 +140,14 @@ class PostcardView:
 
             # Next scan
             label_next_scan = ttk.Label(row, textvariable=self.next_scan, font=styles.FONT_DEFAULT_BOLD)
-            label_next_scan.grid(row=0, column=11, padx=(30,4), pady=4, sticky="w")
+            label_next_scan.grid(row=1, column=0, padx=(8,4), pady=4, sticky="w")
 
             # Actions
             button_skip = ttk.Button(row, text="Siguiente", width=10, command=self._increase_index)
-            button_skip.grid(row=0, column=12, padx=(30,4), pady=4, sticky="e")
+            button_skip.grid(row=1, column=1, padx=(8,4), pady=4, sticky="e")
 
             self.scan_button = ttk.Button(row, text="ESCANEAR (↩)", width=24, command=self._scan)
-            self.scan_button.grid(row=0, column=13, padx=4,  pady=4, sticky="e")
+            self.scan_button.grid(row=1, column=2, padx=4,  pady=4, sticky="e")
 
             row.columnconfigure(11, weight=1)
 
