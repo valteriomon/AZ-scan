@@ -102,7 +102,7 @@ class PostcardView:
 
             row.columnconfigure(6, weight=1)
 
-        def _ui_second_row(row):
+        def _ui_input_row(row):
             row.grid(row=1, column=0, sticky="ew")
 
             # Prefix
@@ -111,51 +111,54 @@ class PostcardView:
 
             self.dropdown_prefix = ttk.OptionMenu(row, self.prefix, self.prefix.get(), *self.state.prefix_list)
             self.dropdown_prefix["menu"].configure(font=styles.FONT_DEFAULT)
-            self.dropdown_prefix.grid(row=0, column=1, padx=4, pady=4)
+            self.dropdown_prefix.grid(row=0, column=1, padx=2, pady=4)
             self.dropdown_prefix.config(width=10)
 
-            entry_prefix = ttk.Entry(row, textvariable=self.prefix, width=8)
-            entry_prefix.grid(row=0, column=2, padx=4, pady=4)
+            entry_prefix = ttk.Entry(row, textvariable=self.prefix, width=10)
+            entry_prefix.grid(row=0, column=2, padx=2, pady=4)
 
             #  Index
             label_index = ttk.Label(row, text="Número:")
-            label_index.grid(row=0, column=3, padx=(8,4), pady=4)
+            label_index.grid(row=0, column=3, padx=(10,2), pady=4)
 
-            entry_index = ttk.Entry(row, textvariable=self.index, width=5, justify="center")
+            entry_index = ttk.Entry(row, textvariable=self.index, width=6, justify="center")
             entry_index.grid(row=0, column=5, padx=4, pady=4)
-            button_index_decrease = ttk.Button(row, text="-", width=3, command=self._decrease_index)
+            button_index_decrease = ttk.Button(row, text="-", width=2, command=self._decrease_index)
             button_index_decrease.grid(row=0, column=4, padx=0, pady=4)
-            button_index_increase = ttk.Button(row, text="+", width=3, command=self._increase_index)
+            button_index_increase = ttk.Button(row, text="+", width=2, command=self._increase_index)
             button_index_increase.grid(row=0, column=6, padx=0, pady=4)
 
-            # Side
+            # # Side
             label_side = ttk.Label(row, text="Lado:")
-            label_side.grid(row=0, column=8, padx=(8,4), pady=4)
+            label_side.grid(row=0, column=7, padx=(10,2), pady=4)
 
             radio_side_a = ttk.Radiobutton(row, text="A", variable=self.side, value="A")
-            radio_side_a.grid(row=0, column=9, padx=4, pady=4)
+            radio_side_a.grid(row=0, column=8, padx=4, pady=4)
             radio_side_b = ttk.Radiobutton(row, text="B", variable=self.side, value="B")
-            radio_side_b.grid(row=0, column=10, padx=4, pady=4)
-
-            # Next scan
-            label_next_scan = ttk.Label(row, textvariable=self.next_scan, font=styles.FONT_DEFAULT_BOLD)
-            label_next_scan.grid(row=1, column=0, padx=(8,4), pady=4, sticky="w")
+            radio_side_b.grid(row=0, column=9, padx=4, pady=4)
 
             # Actions
             button_skip = ttk.Button(row, text="Siguiente", width=10, command=self._increase_index)
-            button_skip.grid(row=1, column=1, padx=(8,4), pady=4, sticky="e")
+            button_skip.grid(row=0, column=10, padx=(8,4), pady=4, sticky="w")
+
+        def _ui_action_row(row):
+            row.grid(row=2, column=0, sticky="ew")
+            
+            # Next scan
+            label_next_scan = ttk.Label(row, textvariable=self.next_scan, font=styles.FONT_DEFAULT_BOLD)
+            label_next_scan.grid(row=0, column=0, padx=4, pady=4, sticky="w")
+
+
 
             self.scan_button = ttk.Button(row, text="ESCANEAR (↩)", width=24, command=self._scan)
-            self.scan_button.grid(row=1, column=2, padx=4,  pady=4, sticky="e")
-
-            row.columnconfigure(11, weight=1)
+            self.scan_button.grid(row=0, column=2, padx=4,  pady=4, sticky="w")
 
         def _ui_separator(row):
-            row.grid(row=2, column=0, sticky="ew")
+            row.grid(row=3, column=0, sticky="ew")
             ttk.Separator(row, orient='horizontal').pack(fill='x', padx=4, pady=(10))
 
-        def _ui_third_row(row):
-            row.grid(row=3, column=0, sticky="ew")
+        def _ui_file_row(row):
+            row.grid(row=4, column=0, sticky="ew")
 
             # Previous filename
             label_last_scan =ttk.Label(row, text="Último escaneo:")
@@ -219,9 +222,10 @@ class PostcardView:
         main_frame.columnconfigure(0, weight=1)
 
         _ui_first_row(ttk.Frame(main_frame))
-        _ui_second_row(ttk.Frame(main_frame))
+        _ui_input_row(ttk.Frame(main_frame))
+        _ui_action_row(ttk.Frame(main_frame))
         _ui_separator(ttk.Frame(main_frame))
-        _ui_third_row(ttk.Frame(main_frame))
+        _ui_file_row(ttk.Frame(main_frame))
 
         self.preview_frame = ttk.Frame(main_frame)
         # _ui_preview(self.preview_frame)
